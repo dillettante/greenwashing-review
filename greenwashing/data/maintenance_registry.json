@@ -1,0 +1,31 @@
+{
+  "case_queries": [
+    "친환경 광고",
+    "환경성 표시 광고",
+    "표시광고법 환경",
+    "탄소중립 광고",
+    "재활용 친환경 표시"
+  ],
+  "official_watches": [
+    {
+      "id": "KR-KFTC-PRESS-ADVERTISING",
+      "name": "공정거래위원회 표시광고 보도자료 검색",
+      "url": "https://www.ftc.go.kr/www/selectBbsNttList.do?key=12&bordCd=3&searchCnd=all&searchKrwd=%ED%91%9C%EC%8B%9C%EA%B4%91%EA%B3%A0"
+    },
+    {
+      "id": "KR-KFTC-PRESS-GREEN",
+      "name": "공정거래위원회 친환경 보도자료 검색",
+      "url": "https://www.ftc.go.kr/www/selectBbsNttList.do?key=12&bordCd=3&searchCnd=all&searchKrwd=%EC%B9%9C%ED%99%98%EA%B2%BD"
+    },
+    {
+      "id": "KR-ME-PRESS-GREENWASHING",
+      "name": "기후에너지환경부 그린워싱·환경성 표시광고 검색",
+      "url": "https://www.mcee.go.kr/home/web/board/list.do?boardMasterId=939&menuId=10598&searchKey=title&searchValue=%ED%99%98%EA%B2%BD%EC%84%B1"
+    },
+    {
+      "id": "KR-LAW-UNIFIED-SEARCH",
+      "name": "국가법령정보센터 표시광고 통합검색",
+      "url": "https://www.law.go.kr/LSW/unSc.do?menuId=10&query=%ED%99%98%EA%B2%BD%EC%84%B1%20%ED%91%9C%EC%8B%9C%20%EA%B4%91%EA%B3%A0"
+    }
+  ]
+}

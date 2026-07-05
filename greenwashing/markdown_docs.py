@@ -1,0 +1,283 @@
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+
+from .analysis import PATTERN_LABELS
+
+
+ROUTE_LABELS = {"kftc": "공정거래위원회", "environment": "기후에너지환경부", "criminal": "수사기관"}
+FILING_TITLES = {
+    "kftc": "부당한 표시·광고 신고서(초안)",
+    "environment": "환경성 표시·광고 조사 요청서(초안)",
+    "criminal": "고발장(초안)",
+}
+STANCE_MARK = {"확인": "✅ 확인", "반증": "⛔ 반증", "중립": "◽ 중립"}
+
+
+def _cell(value: Any) -> str:
+    return str(value if value is not None else "").replace("|", "／").replace("\n", " ").strip()
+
+
+def _oneline(text: str, limit: int = 60) -> str:
+    text = " ".join(str(text).split())
+    return text[:limit] + ("…" if len(text) > limit else "")
+
+
+def _write(path: Path, lines: list[str]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+
+
+# ---------------------------------------------------------------- 법률검토보고서 (경로·검증 통합)
+
+def create_assessment_report_md(result: dict[str, Any], authorities: dict[str, dict[str, Any]], output_path: Path) -> None:
+    ctx = result["context"]
+    claims = result["claims"]
+    o: list[str] = [
+        f"# 그린워싱 법률검토보고서",
+        "",
+        f"- 사건: `{result['matter_id']}`",
+        f"- 작성일: {result['created_at'][:10]}",
+        "",
+        "> 변호사 검토용 초안. 위험점수는 우선순위 도구이며 위법성의 자동 결론이 아닙니다.",
+    ]
+    meta = result.get("evaluation_meta")
+    if meta:
+        o.append(
+            f"> 이 보고서의 ‘법적 평가’·‘실증·검증’은 {meta.get('evaluated_by') or '변호사'}가 "
+            f"korean-law MCP·웹 리서치로 정밀평가한 {meta.get('evaluated_count', 0)}건에 근거합니다. "
+            "‘기계 1차분류’는 정규식 트리아지 값이며 법적 판단이 아닙니다."
+        )
+    else:
+        o.append(
+            "> ※ 정밀 법적 평가(evaluation.json)가 결합되지 않았습니다. ‘기계 1차분류’는 정규식 트리아지 값입니다. "
+            "EVALUATION-SOP.md 절차로 korean-law MCP·웹 검증을 결합해야 실전 근거가 됩니다."
+        )
+
+    o += ["", "## 1. 검토 대상 및 전제", ""]
+    for label, key in [("기업", "company"), ("제품·서비스", "product"), ("매체", "medium"),
+                       ("예상 독자", "audience"), ("게시일", "published_date")]:
+        o.append(f"- **{label}**: {ctx.get(key, '[확인 필요]')}")
+
+    if result.get("warnings"):
+        o += ["", "### 확인 필요 사항", ""]
+        o += [f"- {w}" for w in result["warnings"]]
+
+    corr = result.get("corroboration")
+    if corr:
+        o += ["", "### 공개자료 교차확인", "",
+              f"회사 홈페이지 스냅숏 {corr.get('company_source_count', 0)}건, 언론 검색 포인터 "
+              f"{corr.get('news_pointer_count', 0)}건 수집, 주장-자료 문언 매칭 {len(corr.get('matches', []))}건.",
+              corr.get("caveat", "")]
+
+    # 결론 요약 — 두 분포
+    counts = {"매우 높음": 0, "높음": 0, "중간": 0, "낮음": 0}
+    for c in claims:
+        counts[c["risk_band"]] += 1
+    o += ["", "## 2. 결론 요약", "",
+          f"**[기계 트리아지 분포]** 환경 주장 {len(claims)}건 — 매우 높음 {counts['매우 높음']} · "
+          f"높음 {counts['높음']} · 중간 {counts['중간']} · 낮음 {counts['낮음']}. 정규식 트리아지 값(법적 판단 아님)."]
+    evaluated = [c for c in claims if c.get("evaluation")]
+    if evaluated:
+        af = {"있음": 0, "불확실": 0, "없음": 0}
+        rf = {"매우 높음": 0, "높음": 0, "중간": 0, "낮음": 0}
+        fp = 0
+        for c in evaluated:
+            ev = c["evaluation"]
+            af[ev.get("applicability_final", "불확실")] = af.get(ev.get("applicability_final", "불확실"), 0) + 1
+            if ev.get("risk_final") in rf:
+                rf[ev["risk_final"]] += 1
+            if c["applicability"] == "있음" and ev.get("applicability_final") == "없음":
+                fp += 1
+        o.append(
+            f"**[정밀평가 최종 분포]** {len(evaluated)}건 정밀평가 — 광고성 있음 {af['있음']} · 불확실 {af['불확실']} · "
+            f"없음 {af['없음']} / 위험 매우 높음 {rf['매우 높음']} · 높음 {rf['높음']} · 중간 {rf['중간']} · 낮음 {rf['낮음']}. "
+            f"기계 분류의 오탐 {fp}건이 걸러졌습니다."
+        )
+
+    # 주장별 상세 — 정밀평가된 것 우선, 없으면 광고성 상위
+    detailed = evaluated if evaluated else [c for c in claims if c["applicability"] == "있음"][:12]
+    o += ["", "## 3. 주장별 검토", ""]
+    for idx, c in enumerate(detailed, 1):
+        ev = c.get("evaluation") or {}
+        final_risk = ev.get("risk_final") or c["risk_band"]
+        o += [f"### 3-{idx}. {c['claim_id']} — 최종 위험 {final_risk} (기계 {c['risk_score']}점)", "",
+              f"> {c['quote']}", "",
+              f"- 위치: {c['filename']} {c['page']}쪽",
+              f"- 광고성(기계): {c['applicability']}" + (f" → **최종 {ev['applicability_final']}**" if ev.get("applicability_final") else ""),
+              f"- 주장 대상: {c['subject_scope']}",
+              f"- 유형: {', '.join(PATTERN_LABELS.get(p, p) for p in c['patterns'])}",
+              f"- 기계 1차분류(참고, 법적 판단 아님): {c['legal_call']}"]
+
+        if ev:
+            o += ["", "**법적 평가 (변호사·korean-law MCP)**"]
+            provs = ev.get("provisions") or []
+            if provs:
+                o.append("- 적용 조문(포섭):")
+                o += [f"    - {p.get('authority_id','')} {p.get('cite','')}" + (f" — {p['label']}" if p.get("label") else "") for p in provs]
+            if ev.get("assessment"):
+                o.append(f"- 포섭·판단: {ev['assessment']}")
+            if ev.get("misleading"):
+                o.append(f"- 오인가능성: {ev['misleading']}")
+            precs = ev.get("precedents") or []
+            if precs:
+                o.append("- 참조 심결례·판례:")
+                o += [f"    - {pr.get('cite','')}" + (f" [{pr['status']}]" if pr.get("status") else "") + (f" — {pr['holding']}" if pr.get("holding") else "") for pr in precs]
+            else:
+                o.append("- 참조 심결례·판례: [확인 필요] 공정위 사건검색·사내 판례·심결례 DB로 보강")
+
+            ver = ev.get("verification")
+            if ver:
+                o += ["", "**실증·검증 (웹 리서치)**",
+                      f"- 판정: **{ver.get('verdict', '미확인')}**"]
+                if ver.get("summary"):
+                    o.append(f"- 요약: {ver['summary']}")
+                for src in ver.get("sources", []):
+                    mark = STANCE_MARK.get(src.get("stance", "중립"), "◽ 중립")
+                    title = src.get("title", "출처")
+                    url = src.get("url", "")
+                    pub = f"{src.get('publisher','')} {src.get('date','')}".strip()
+                    link = f"[{title}]({url})" if url else title
+                    o.append(f"- {mark} · {link}" + (f" ({pub})" if pub else "") + (f" — {src['finding']}" if src.get("finding") else ""))
+            else:
+                o += ["", "**실증·검증 (웹 리서치)**: [미실시] 회사 주장 지표의 실재·범위·반증을 웹으로 확인해야 함"]
+
+            if ev.get("confirm_needed"):
+                o.append("- [확인 필요]:")
+                o += [f"    - {x}" for x in ev["confirm_needed"]]
+
+        if c["missing_evidence"]:
+            o += ["", "추가 확보 필요 자료:"]
+            o += [f"- {m}" for m in c["missing_evidence"]]
+        if c.get("comparative_notes"):
+            o += ["", "비교법적 보강(한국법상 직접 근거 아님):"]
+            o += [f"- {n}" for n in c["comparative_notes"]]
+        o.append("")
+
+    # 4. 제출 경로 (구 대응경로 메모 병합)
+    o += ["## 4. 제출 경로 검토", ""]
+    for route in result["route_recommendations"]:
+        o.append(f"- **{ROUTE_LABELS.get(route['route'], route['route'])}**: {route['recommendation']} — {route['reason']}")
+    o += ["", "### 경로 공통 선행 확인", "",
+          "- 표시·광고 해당성과 소비자 오인 가능성",
+          "- 환경기술 및 환경산업 지원법상 제품·행위자 범위",
+          "- 실증자료 요청·보전 필요성",
+          "- 행정조사와 형사절차의 순서 및 중복 위험",
+          "- 고발인·피고발인 인적사항, 관할, 시효"]
+
+    o += ["", "## 5. 최종 검증 게이트", "",
+          "- 사건 당시 시행 법령과 현행 법령을 구분하여 재확인",
+          "- 판례·심결례의 원문, 절차단계 및 확정 여부 확인",
+          "- 각 주장과 증거의 페이지·파일 해시 대조",
+          "- 회사 환경성과·지표의 실재 여부 웹·원자료 재검증",
+          "- 행위자·게시기간·도달범위·시정 여부 확인",
+          "- 변호사 최종 승인 후 제출문서 확정"]
+
+    # 6. 직접 근거 원문
+    cited_ids: set[str] = set()
+    cited_provs: dict[tuple[str, str], dict[str, Any]] = {}
+    for c in detailed:
+        for cit in c.get("legal_citations", []):
+            cited_ids.add(cit["authority_id"])
+            cited_provs[(cit["authority_id"], cit["provision_no"])] = cit
+    o += ["", "## 6. 직접 근거 원문·버전", ""]
+    for aid in sorted(cited_ids):
+        a = authorities.get(aid, {})
+        o.append(f"- {a.get('title', aid)} {a.get('citation') or ''}: {a.get('source_url', '')} "
+                 f"(원문 SHA-256 `{a.get('sha256') or '[확인 필요]'}`)")
+    for cit in cited_provs.values():
+        excerpt = cit["text"][:1200]
+        if len(cit["text"]) > len(excerpt):
+            excerpt += " […이하 로컬 조문 DB]"
+        o += ["", f"### {cit['title']} {cit['provision_no']} {cit.get('heading') or ''}", "",
+              excerpt,
+              "",
+              f"시행일 {cit.get('effective_date') or '[확인 필요]'} · 조문 SHA-256 `{cit['provision_sha256']}`"]
+
+    _write(output_path, o)
+
+
+# ---------------------------------------------------------------- 좁은 요약표
+
+def create_claims_table_md(result: dict[str, Any], output_path: Path) -> None:
+    o = ["# 주장별 검토표 (요약)", "",
+         "전체 컬럼·정렬·색상 작업본은 `주장별-검토표.xlsx`를 사용하십시오. 이 표는 스캔용 요약입니다.", "",
+         "| claim_id | 쪽 | 기계위험 | 최종광고성 | 최종위험 | 유형 | 한줄요약 |",
+         "|---|---|---|---|---|---|---|"]
+    ranked = sorted(result["claims"], key=lambda c: (-c["risk_score"], c["page"]))
+    for c in ranked:
+        ev = c.get("evaluation") or {}
+        o.append("| {id} | {pg} | {rb}({rs}) | {af} | {rf} | {ty} | {q} |".format(
+            id=c["claim_id"], pg=c["page"], rb=_cell(c["risk_band"]), rs=c["risk_score"],
+            af=_cell(ev.get("applicability_final", "-")), rf=_cell(ev.get("risk_final", "-")),
+            ty=_cell(", ".join(PATTERN_LABELS.get(p, p) for p in c["patterns"])),
+            q=_cell(_oneline(c["quote"], 50))))
+    _write(output_path, o)
+
+
+def create_evidence_table_md(result: dict[str, Any], output_path: Path) -> None:
+    claim_map: dict[str, list[str]] = {}
+    for c in result["claims"]:
+        claim_map.setdefault(f"{c['document_id']}:{c['page']}", []).append(c["claim_id"])
+    o = ["# 증거목록 (요약)", "",
+         "해시·발췌 전체는 `증거목록.xlsx`를 참조하십시오.", "",
+         "| 증거ID | 구분 | 파일 | 쪽 | 관련 Claim | 상태 |",
+         "|---|---|---|---|---|---|"]
+    seen: set[str] = set()
+    for page in [*result["input_documents"], *result["evidence_documents"]]:
+        key = f"{page['document_id']}:{page['page']}:{page['source_type']}"
+        if key in seen:
+            continue
+        seen.add(key)
+        st = page["source_type"]
+        eid = f"{'T' if st == 'target' else 'E'}-{page['document_id']}-{page['page']}"
+        gubun = "검토 대상" if st == "target" else ("공개 교차확인" if st == "public_evidence" else "실증·반증")
+        text = page.get("text") or ""
+        status = ("공개자료·별도검증" if st == "public_evidence" else "추출 완료") if text else "[확인 필요] OCR"
+        o.append("| {e} | {g} | {f} | {p} | {c} | {s} |".format(
+            e=eid, g=gubun, f=_cell(page["filename"]), p=page["page"],
+            c=_cell(", ".join(claim_map.get(f"{page['document_id']}:{page['page']}", []))), s=status))
+    _write(output_path, o)
+
+
+# ---------------------------------------------------------------- 제출문서 초안(md)
+
+def create_filing_md(result: dict[str, Any], route: str, output_path: Path) -> None:
+    ctx = result["context"]
+    o = [f"# {FILING_TITLES[route]}", "",
+         "> 변호사 승인 후 사실·법령·관할을 최종 확정할 것", "",
+         "## 1. 당사자", "",
+         f"- 신고인·고발인: {ctx.get('complainant', '[확인 필요]')}",
+         f"- 피신고인·피고발인: {ctx.get('company', '[확인 필요]')}",
+         f"- 주소·대표자: {ctx.get('respondent_details', '[확인 필요]')}",
+         "", "## 2. 대상 행위", ""]
+    for c in result["claims"]:
+        if c["applicability"] != "없음" and (c.get("evaluation", {}) or {}).get("applicability_final") != "없음":
+            o.append(f"- {c['claim_id']} — {c['filename']} {c['page']}쪽: “{_oneline(c['quote'], 90)}”")
+    o += ["", "## 3. 사실관계", "",
+          "[확인 필요] 게시 주체, 게시일, 게시 매체, 노출기간, 도달범위 및 시정 여부를 증거와 함께 특정합니다."]
+
+    applied: dict[str, str] = {}
+    for c in result["claims"]:
+        for p in (c.get("evaluation") or {}).get("provisions", []):
+            cite = f"{p.get('authority_id', '')} {p.get('cite', '')}".strip()
+            if cite:
+                applied[cite] = p.get("label", "")
+    o += ["", "## 4. 법률상 쟁점", "",
+          "각 주장의 진실성·명확성·대상 구체성·환경성 개선의 상당성·자발성·실증가능성과 소비자 오인가능성을 검토합니다."]
+    if applied:
+        o.append("")
+        o.append("정밀평가에서 포섭된 적용 조문:")
+        o += [f"- {cite}" + (f" — {label}" if label else "") for cite, label in applied.items()]
+    else:
+        o += ["", "[확인 필요] 적용 조문은 korean-law MCP 정밀평가 결합 후 확정합니다."]
+
+    o += ["", "## 5. 입증자료", "", "별첨 증거목록과 원문 파일 해시를 참조합니다.", "", "## 6. 요청사항", ""]
+    if route == "kftc":
+        o.append("표시광고법 위반 여부를 조사하고 필요한 시정조치 등 적절한 조치를 하여 주시기 바랍니다.")
+    elif route == "environment":
+        o.append("환경성 표시·광고의 실증자료를 확인하고 관련 법령에 따른 조사와 조치를 하여 주시기 바랍니다.")
+    else:
+        o.append("[확인 필요] 적용 가능한 벌칙조항, 구성요건, 고의, 행위자 및 관할을 확정한 뒤 수사를 요청합니다.")
+    _write(output_path, o)

@@ -1,0 +1,19 @@
+# 캐시·빌드
+.DS_Store
+node_modules
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# 런타임 DB(공개 저장소에 커밋하지 않음 — clone 후 `corpus sync`로 재생성)
+.gw/
+
+# 법령 원문 스냅숏(재생성 가능, 용량) — clone 후 `corpus sync`로 내려받음
+corpus/raw/
+
+# ★ 기밀: 실제 사건 폴더는 절대 커밋하지 않는다
+matters/
+
+# 사건별 산출물
+output/
+examples/**/output/

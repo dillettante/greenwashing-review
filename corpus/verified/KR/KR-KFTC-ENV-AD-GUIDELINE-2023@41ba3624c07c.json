@@ -1,0 +1,26 @@
+{
+  "authority_id": "KR-KFTC-ENV-AD-GUIDELINE-2023",
+  "version_id": "KR-KFTC-ENV-AD-GUIDELINE-2023@41ba3624c07c",
+  "title": "환경 관련 표시·광고에 관한 심사지침",
+  "effective_date": null,
+  "promulgation": null,
+  "retrieved_at": "2026-07-05T07:57:46+09:00",
+  "source_url": "https://www.law.go.kr/행정규칙/환경관련표시·광고에관한심사지침",
+  "resolved_url": "https://www.law.go.kr/LSW/admRulLsInfoR.do?admRulSeq=2100000228518&joTpYn=Y&languageType=KO&chrClsCd=010201&admRulId=35037",
+  "source_sha256": "41ba3624c07cdc083dc2f775a7cba53ca06addfa6d86e680f8c915c7100ac767",
+  "full_text_sha256": "aebfd41f5eef8a910dfc88824e2e70e9cbb97553b1372cdef2d4bf8c7a4d605c",
+  "provisions": [
+    {
+      "provision_no": "제1조",
+      "heading": "시행일",
+      "text": "제1조(시행일) 이 지침은 2009년 8월 21일부터 시행한다.",
+      "text_sha256": "929242ff6a0e7310897d74ff44d0d698c29ebe233a320791b00a4e36ca5e4347"
+    },
+    {
+      "provision_no": "제2조",
+      "heading": "종전 지침의 폐지",
+      "text": "제2조(종전 지침의 폐지) 종전의 환경관련 표시·광고에 관한 심사지침은 이를 폐지한다.\n부 칙 <제86호,2010. 12. 31.>\n이 심사지침은 2011년 1월 1일부터 시행한다.\n부 칙 <제191호,2014. 5. 1.>\n이 심사지침은 2014년 5월 1일부터 시행한다.\n부 칙 <제235호,2015. 10. 23.>\n이 예규는 2015년 10월 23일부터 시행한다.\n부 칙 <제275호,2016. 12. 23.>\n이 예규는 2016년 12월 23일부터 시행한다.\n부 칙 <제442호, 2023. 8. 31.>\n이 예규는 2023년 9월 1일부터 시행한다.",
+      "text_sha256": "f297dd60264bb4163acf0b644dff03f5cf39b72c2648f62b07528cbed56788e7"
+    }
+  ]
+}

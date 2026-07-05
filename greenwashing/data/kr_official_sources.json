@@ -1,0 +1,56 @@
+[
+  {
+    "id": "KR-FAIR-LABELING-ACT",
+    "title": "표시·광고의 공정화에 관한 법률",
+    "issuing_body": "법제처·공정거래위원회",
+    "authority_type": "statute",
+    "canonical_url": "https://www.law.go.kr/법령/표시ㆍ광고의공정화에관한법률",
+    "method": "law_pdf",
+    "citation": "제2조, 제3조, 제5조 등"
+  },
+  {
+    "id": "KR-FAIR-LABELING-DECREE",
+    "title": "표시·광고의 공정화에 관한 법률 시행령",
+    "issuing_body": "법제처·공정거래위원회",
+    "authority_type": "presidential_decree",
+    "canonical_url": "https://www.law.go.kr/법령/표시ㆍ광고의공정화에관한법률시행령",
+    "method": "law_pdf",
+    "citation": "제2조, 제3조 등"
+  },
+  {
+    "id": "KR-ENV-TECH-ACT",
+    "title": "환경기술 및 환경산업 지원법",
+    "issuing_body": "법제처·기후에너지환경부",
+    "authority_type": "statute",
+    "canonical_url": "https://www.law.go.kr/법령/환경기술및환경산업지원법",
+    "method": "law_pdf",
+    "citation": "제2조, 제16조의10부터 제16조의14까지 등"
+  },
+  {
+    "id": "KR-ENV-TECH-DECREE",
+    "title": "환경기술 및 환경산업 지원법 시행령",
+    "issuing_body": "법제처·기후에너지환경부",
+    "authority_type": "presidential_decree",
+    "canonical_url": "https://www.law.go.kr/법령/환경기술및환경산업지원법시행령",
+    "method": "law_pdf",
+    "citation": "제22조의10부터 제22조의15까지, 별표 2의2 등"
+  },
+  {
+    "id": "KR-ME-ENV-CLAIMS-NOTICE-2025",
+    "title": "환경성 표시·광고 관리제도에 관한 고시",
+    "issuing_body": "기후에너지환경부",
+    "authority_type": "administrative_rule",
+    "canonical_url": "https://www.law.go.kr/LSW/admRulInfoP.do?admRulSeq=2100000268356&chrClsCd=010201",
+    "method": "administrative_rule_html",
+    "citation": "기후에너지환경부고시 제2025-165호"
+  },
+  {
+    "id": "KR-KFTC-ENV-AD-GUIDELINE-2023",
+    "title": "환경 관련 표시·광고에 관한 심사지침",
+    "issuing_body": "공정거래위원회",
+    "authority_type": "guideline",
+    "canonical_url": "https://www.law.go.kr/행정규칙/환경관련표시·광고에관한심사지침",
+    "method": "administrative_rule_html",
+    "citation": "공정거래위원회예규 제442호"
+  }
+]

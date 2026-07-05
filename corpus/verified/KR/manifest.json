@@ -1,0 +1,42 @@
+{
+  "retrieved_at": "2026-07-05T10:51:56+09:00",
+  "jurisdiction": "KR",
+  "sources": [
+    {
+      "id": "KR-FAIR-LABELING-ACT",
+      "version_id": "KR-FAIR-LABELING-ACT@2025-01-21",
+      "provisions": 24,
+      "sha256": "2b06b05a563c861675782a117d08f7eef912d5fbae71274d38828902ba6b8974"
+    },
+    {
+      "id": "KR-FAIR-LABELING-DECREE",
+      "version_id": "KR-FAIR-LABELING-DECREE@2026-07-01",
+      "provisions": 20,
+      "sha256": "bca1f2960d4f835eafc87c464016259fb7f4c7edd22d15da2aaeda4d3c44342c"
+    },
+    {
+      "id": "KR-ENV-TECH-ACT",
+      "version_id": "KR-ENV-TECH-ACT@2026-06-09",
+      "provisions": 70,
+      "sha256": "62de0ddb8e6dcbab6b8dfcd7c35eab59f6369ad49474c36da47c6e5f01c14e1d"
+    },
+    {
+      "id": "KR-ENV-TECH-DECREE",
+      "version_id": "KR-ENV-TECH-DECREE@2026-03-19",
+      "provisions": 74,
+      "sha256": "ba5b0551edbbd6d8e6497a0a3f16187e3245e8166b4938e68e6243baf3b7f79b"
+    },
+    {
+      "id": "KR-ME-ENV-CLAIMS-NOTICE-2025",
+      "version_id": "KR-ME-ENV-CLAIMS-NOTICE-2025@2025-10-07",
+      "provisions": 46,
+      "sha256": "0f1a244bb0692224356644644c2cf22f900f410c278ec4a71df1209cfa5129e5"
+    },
+    {
+      "id": "KR-KFTC-ENV-AD-GUIDELINE-2023",
+      "version_id": "KR-KFTC-ENV-AD-GUIDELINE-2023@2023-09-01",
+      "provisions": 6,
+      "sha256": "41ba3624c07cdc083dc2f775a7cba53ca06addfa6d86e680f8c915c7100ac767"
+    }
+  ]
+}
