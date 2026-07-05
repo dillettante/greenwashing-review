@@ -164,7 +164,8 @@ verify  <matter_id>                무결성 검증(exit 2 = 검토 필요)
 - 규범 6개 · 조문 240개: 표시광고법·시행령, 환경기술산업법·시행령, 「환경성 표시·광고 관리제도에 관한 고시」, 「환경 관련 표시·광고에 관한 심사지침」.
 - `.gw/state.sqlite3` = 런타임 조회 DB, `corpus/verified` = 검증 원본, `corpus/raw` = 증거 스냅숏.
 - **assess는 필수 조문 DB가 없으면 중단**한다(법률근거 게이트).
-- **심결례·판례 DB는 아직 비어 있다.** 법제처 API가 그린워싱 사례를 거의 반환하지 않으므로 공정위 사건검색(case.ftc.go.kr)·사내 판례·심결례 DB에서 사람이 수집해 `import-json`으로 편입한다(후속 과제, [MAINTENANCE.md](MAINTENANCE.md)).
+- **의결서 아카이브·검색**: `corpus fetch-decisions`로 공정위 표시광고 의결서(그린워싱 관련분)를 로컬 수집 → `corpus index-decisions`로 시맨틱 인덱스(LM Studio 임베딩) → `corpus search-decisions`로 주장별 검색. **원문·인덱스는 로컬·gitignore이므로 pull 사용자는 각자 재생성**한다. 수집 목록만은 `corpus/verified/KR/decisions-catalog.csv`(사건번호·사건명·조치·의결일)로 커밋돼 있어 무엇이 있는지 미리 볼 수 있다.
+- 심결례를 도구가 자동 인용(`precedents`)하게 하려면 사람이 확인 후 `import-json`으로 `case_records`에 편입한다(자동 편입 금지, [MAINTENANCE.md](MAINTENANCE.md)).
 
 ---
 
