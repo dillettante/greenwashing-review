@@ -45,6 +45,26 @@ def _pdf_text(path: Path) -> str:
         return ""
 
 
+def _doc_text(path: Path) -> str:
+    if path.suffix.lower() == ".pdf":
+        return _pdf_text(path)
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")
+    except Exception:
+        return ""
+
+
+def _iter_decisions(corpus_dir: Path):
+    """모든 관할(KR PDF·UK/US/EU 텍스트)의 다운로드된 결정을 jurisdiction 태그와 함께 순회."""
+    for jx in ("KR", "UK", "US", "EU"):
+        mp = corpus_dir / "raw" / jx / "cases" / "_manifest.json"
+        if not mp.exists():
+            continue
+        for rec in json.loads(mp.read_text(encoding="utf-8"))["decisions"].values():
+            if rec.get("local_path"):
+                yield {**rec, "jurisdiction": rec.get("jurisdiction", jx)}
+
+
 def _chunks(text: str, size: int = 800, overlap: int = 120) -> list[str]:
     text = re.sub(r"[ \t]+", " ", text)
     paras = [p.strip() for p in re.split(r"\n{2,}|\r\n\r\n", text) if p.strip()]
@@ -69,10 +89,6 @@ def _index_dir(corpus_dir: Path) -> Path:
 
 
 def index_decisions(corpus_dir: Path, rebuild: bool = False, max_chunks_per_doc: int = 40) -> dict:
-    manifest_path = corpus_dir / "raw" / "KR" / "cases" / "_manifest.json"
-    if not manifest_path.exists():
-        raise RuntimeError("의결서 manifest가 없습니다. 먼저 `corpus fetch-decisions`를 실행하십시오.")
-    decisions = json.loads(manifest_path.read_text(encoding="utf-8"))["decisions"]
     idir = _index_dir(corpus_dir)
     idir.mkdir(parents=True, exist_ok=True)
     vec_path, meta_path = idir / "vectors.npy", idir / "chunks.jsonl"
@@ -81,22 +97,23 @@ def index_decisions(corpus_dir: Path, rebuild: bool = False, max_chunks_per_doc:
         vec_path.unlink(missing_ok=True)
         meta_path.unlink(missing_ok=True)
     existing_meta = [json.loads(l) for l in meta_path.read_text(encoding="utf-8").splitlines()] if meta_path.exists() else []
-    indexed = {m["csno"] for m in existing_meta}
+    indexed = {(m.get("jurisdiction", "KR"), m["csno"]) for m in existing_meta}
     vectors = [np.load(vec_path)] if vec_path.exists() and existing_meta else []
 
     new_meta, new_texts, indexed_docs, skipped = [], [], 0, 0
-    for rec in decisions.values():
-        if not rec.get("local_path") or rec["csno"] in indexed:
+    for rec in _iter_decisions(corpus_dir):
+        if (rec["jurisdiction"], rec.get("csno", "")) in indexed:
             continue
-        text = _pdf_text(Path(rec["local_path"]))
+        text = _doc_text(Path(rec["local_path"]))
         cs = _chunks(text)[:max_chunks_per_doc]
         if not cs:
             skipped += 1
             continue
         base = {k: rec.get(k, "") for k in _META}
-        header = f"{base['csname']} · {base['ttcnts']}"  # 사건명·조치를 매 청크에 앵커링
+        base["jurisdiction"] = rec["jurisdiction"]
+        header = f"[{rec['jurisdiction']}] {base['csname']} · {base['ttcnts']}"  # 관할·사건명·조치 앵커링
         for i, c in enumerate(cs):
-            if len(re.findall(r"[가-힣]", c)) < 40:  # 절차·여백·표 보일러플레이트 제외
+            if len(re.findall(r"[가-힣A-Za-z]", c)) < 40:  # 절차·여백 보일러플레이트 제외(한/영 모두)
                 continue
             new_meta.append({**base, "chunk": i, "text": c})
             new_texts.append(f"{header}: {c}")
@@ -114,8 +131,8 @@ def index_decisions(corpus_dir: Path, rebuild: bool = False, max_chunks_per_doc:
             "index_dir": str(idir)}
 
 
-def search_decisions(corpus_dir: Path, query: str, k: int = 5,
-                     action: str | None = None, since: str | None = None) -> list[dict]:
+def search_decisions(corpus_dir: Path, query: str, k: int = 5, action: str | None = None,
+                     since: str | None = None, jurisdiction: str | None = None) -> list[dict]:
     idir = _index_dir(corpus_dir)
     vec_path, meta_path = idir / "vectors.npy", idir / "chunks.jsonl"
     if not vec_path.exists():
@@ -128,16 +145,19 @@ def search_decisions(corpus_dir: Path, query: str, k: int = 5,
     results, seen = [], set()
     for idx in order:
         m = meta[idx]
+        jx = m.get("jurisdiction", "KR")
+        if jurisdiction and jx != jurisdiction:
+            continue
         if action and action not in m.get("ttcnts", ""):
             continue
         if since and m.get("apdate", "") and m["apdate"] < since:
             continue
-        if m["csno"] in seen:  # 의결서당 최고 청크 1개
+        if (jx, m["csno"]) in seen:  # 결정당 최고 청크 1개
             continue
-        seen.add(m["csno"])
-        results.append({"score": round(float(scores[idx]), 4), "csno": m["csno"], "csname": m["csname"],
-                        "ttcnts": m["ttcnts"], "apdate": m["apdate"], "keyword": m["keyword"],
-                        "excerpt": m["text"][:300], "pdf": m["local_path"]})
+        seen.add((jx, m["csno"]))
+        results.append({"score": round(float(scores[idx]), 4), "jurisdiction": jx, "csno": m["csno"],
+                        "csname": m["csname"], "ttcnts": m["ttcnts"], "apdate": m["apdate"],
+                        "keyword": m["keyword"], "excerpt": m["text"][:300], "pdf": m["local_path"]})
         if len(results) >= k:
             break
     return results

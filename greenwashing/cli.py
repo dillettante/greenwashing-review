@@ -144,11 +144,22 @@ def command_corpus_index_decisions(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_corpus_fetch_cases(args: argparse.Namespace) -> int:
+    if args.jurisdiction == "UK":
+        from .asa_rulings import fetch_asa
+        keywords = args.keyword or ["environmental", "green", "carbon", "sustainable", "climate", "recyclable"]
+        result = fetch_asa(PROJECT_ROOT / "corpus", keywords=keywords, max_pages=args.max_pages, delay=args.delay)
+    else:
+        raise ValueError(f"아직 미구현 관할: {args.jurisdiction} (현재 UK=ASA만 지원, US/EU는 후속)")
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
 def command_corpus_search_decisions(args: argparse.Namespace) -> int:
     from .decision_index import search_decisions
 
-    results = search_decisions(PROJECT_ROOT / "corpus", args.query, k=args.k,
-                               action=args.action, since=args.since)
+    results = search_decisions(PROJECT_ROOT / "corpus", args.query, k=args.k, action=args.action,
+                               since=args.since, jurisdiction=args.jurisdiction)
     print(json.dumps({"query": args.query, "count": len(results), "results": results},
                      ensure_ascii=False, indent=2))
     return 0
@@ -433,12 +444,19 @@ def build_parser() -> argparse.ArgumentParser:
     index_dec = corpus_sub.add_parser("index-decisions", help="의결서 로컬 시맨틱 인덱스 구축(LM Studio 임베딩, 증분)")
     index_dec.add_argument("--rebuild", action="store_true", help="전체 재인덱싱")
     index_dec.set_defaults(func=command_corpus_index_decisions)
-    search_dec = corpus_sub.add_parser("search-decisions", help="주장으로 관련 의결서 시맨틱 검색")
+    search_dec = corpus_sub.add_parser("search-decisions", help="주장으로 관련 의결서·재결 시맨틱 검색")
     search_dec.add_argument("query", help="검색 주장·문구")
     search_dec.add_argument("-k", type=int, default=5, help="반환 건수")
-    search_dec.add_argument("--action", help="조치 필터(예: 고발, 과징금)")
+    search_dec.add_argument("--action", help="조치 필터(예: 고발, 과징금, Upheld)")
     search_dec.add_argument("--since", help="의결일 YYYY-MM-DD 이상")
+    search_dec.add_argument("--jurisdiction", choices=["KR", "UK", "US", "EU"], help="관할 필터")
     search_dec.set_defaults(func=command_corpus_search_decisions)
+    fetch_cases = corpus_sub.add_parser("fetch-cases", help="해외 그린워싱 사례 수집(비교법 보강). 현재 UK=ASA")
+    fetch_cases.add_argument("--jurisdiction", choices=["UK", "US", "EU"], required=True)
+    fetch_cases.add_argument("--keyword", action="append", help="검색어(반복). 기본 환경 키워드세트")
+    fetch_cases.add_argument("--max-pages", type=int, help="키워드당 최대 페이지")
+    fetch_cases.add_argument("--delay", type=float, default=1.0)
+    fetch_cases.set_defaults(func=command_corpus_fetch_cases)
 
     assess = sub.add_parser("assess", help="사건 폴더 평가")
     assess.add_argument("matter_folder")
