@@ -50,17 +50,20 @@ python3 -m greenwashing corpus audit --stale-days 7
 확인·현행성 검증에는 신뢰도가 높으나(표시광고법 제3조·제5조, 환경기술산업법 제16조의10 확인 완료),
 심결례 검증은 별도 경로가 필요하다.
 
-### 후속 과제 — 심결례·판례 검증 경로 (미착수)
+### 후속 과제 — 심결례·판례 검증 경로
 
-현재 `2-evaluation.json`의 `precedents`는 비어 있고 `confirm_needed`에 "심결례 보강 필요"로 남긴다.
-다음 중 하나로 채운다. 착수 전까지 제출 문서는 심결례 인용 없이 조문 근거만으로 작성한다.
+**raw 수집은 구현됨** — `corpus fetch-decisions`(`greenwashing/ftc_decisions.py`).
+공정위 사건검색(case.ftc.go.kr)을 토큰 없이 스크래핑해 의결서 PDF를 `corpus/raw/KR/cases/`에
+증분 저장하고, `_manifest.json`에 사건번호·의결번호·사건명·조치·의결일 메타데이터를 남긴다.
+```bash
+python3 -m greenwashing corpus fetch-decisions --keyword 표시광고 --since 2020-01-01
+# 월간 자동화: scripts/run_maintenance.sh에 추가 가능(raw는 gitignore, 로컬 캐시)
+```
 
-1. **공정위 사건검색 DB화** — https://case.ftc.go.kr/ocp/co/ltfr.do 의 의결서를 수집·구조화해
-   `import-json`으로 편입. Open API가 개방되면 자동화 대상.
-2. **사내 판례·심결례 DB** — 사내망에서 접근 가능한 판례·심결례로 검증.
-   기밀·망분리 정책상 로컬/사내에서 수행하고 결과만 구조화 JSON으로 반입.
-
-두 경로 모두 자동 편입 금지 — §4 승격 규칙(사람 확인 후 `import-json`)을 따른다.
+남은 단계(사람): manifest·PDF를 근거로 `case_records` 구조화 JSON을 작성(LLM 보조 가능) →
+사건번호·확정여부·적용조문·holding을 변호사가 확인 → `import-json`으로 편입.
+**자동 편입 금지** — §4 승격 규칙(사람 확인 후 `import-json`)을 따른다. 사내망 판례·심결례 DB가
+있으면 병행한다. `2-evaluation.json`의 `precedents`는 편입 완료 전까지 비워 둔다.
 
 ## 5. 공개자료 교차확인 유지보수
 

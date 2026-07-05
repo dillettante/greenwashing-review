@@ -114,6 +114,21 @@ def command_corpus_candidate_review(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_corpus_fetch_decisions(args: argparse.Namespace) -> int:
+    from .ftc_decisions import fetch_decisions
+
+    result = fetch_decisions(
+        PROJECT_ROOT / "corpus",
+        keywords=args.keyword or ["표시광고"],
+        since=args.since,
+        max_pages=args.max_pages,
+        download=not args.no_download,
+        delay=args.delay,
+    )
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
 def command_assess(args: argparse.Namespace) -> int:
     matter_dir = Path(args.matter_folder).expanduser().resolve()
     result = assess_matter(matter_dir, args.mode)
@@ -381,6 +396,13 @@ def build_parser() -> argparse.ArgumentParser:
     candidate_review.add_argument("--status", choices=["approved_for_import", "excluded", "duplicate", "needs_update"], required=True)
     candidate_review.add_argument("--notes")
     candidate_review.set_defaults(func=command_corpus_candidate_review)
+    fetch_dec = corpus_sub.add_parser("fetch-decisions", help="공정위 의결서 자동 수집(case.ftc.go.kr, 토큰 불요)")
+    fetch_dec.add_argument("--keyword", action="append", help="검색어(반복 가능). 기본 '표시광고'")
+    fetch_dec.add_argument("--since", help="의결일 YYYY-MM-DD 이상만")
+    fetch_dec.add_argument("--max-pages", type=int, help="키워드당 최대 페이지(미지정 시 전체)")
+    fetch_dec.add_argument("--no-download", action="store_true", help="메타데이터만 수집, PDF 미다운로드")
+    fetch_dec.add_argument("--delay", type=float, default=1.0, help="요청 간 지연(초)")
+    fetch_dec.set_defaults(func=command_corpus_fetch_decisions)
 
     assess = sub.add_parser("assess", help="사건 폴더 평가")
     assess.add_argument("matter_folder")
