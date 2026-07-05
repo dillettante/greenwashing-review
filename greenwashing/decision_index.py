@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 from pathlib import Path
 from urllib.request import Request, urlopen
 
@@ -19,19 +20,34 @@ EMBED_MODEL = os.getenv("GW_EMBED_MODEL", "text-embedding-nomic-embed-text-v1.5"
 _META = ("csno", "blno", "csname", "ttcnts", "apdate", "keyword", "local_path")
 
 
-def _embed(texts: list[str], prefix: str, batch: int = 16) -> np.ndarray:
-    """LM Studio 임베딩. nomic 비대칭 검색 프리픽스(search_document/search_query) 적용."""
+def _embed_call(inputs: list[str]) -> list[list[float]]:
+    body = json.dumps({"model": EMBED_MODEL, "input": inputs}).encode()
+    req = Request(EMBED_URL, data=body, headers={"Content-Type": "application/json"})
+    return [item["embedding"] for item in json.loads(urlopen(req, timeout=120).read())["data"]]
+
+
+def _embed(texts: list[str], prefix: str, batch: int = 16, dim: int = 768) -> np.ndarray:
+    """LM Studio 임베딩(nomic 프리픽스). 배치 실패 시 개별 재시도, 개별 실패는 영벡터로 격리(정렬 유지)."""
+    try:
+        _embed_call([f"{prefix}healthcheck"])  # LM Studio 연결 확인
+    except Exception as exc:
+        raise RuntimeError(f"LM Studio 임베딩 연결 실패({EMBED_URL}, model={EMBED_MODEL}): {exc}. "
+                           "LM Studio에 임베딩 모델이 로드돼 있는지 확인하십시오.") from exc
     out: list[list[float]] = []
+    failed = 0
     for start in range(0, len(texts), batch):
-        chunk = [f"{prefix}{t}" for t in texts[start:start + batch]]
-        body = json.dumps({"model": EMBED_MODEL, "input": chunk}).encode()
-        req = Request(EMBED_URL, data=body, headers={"Content-Type": "application/json"})
+        group = [f"{prefix}{t}" for t in texts[start:start + batch]]
         try:
-            data = json.loads(urlopen(req, timeout=120).read())
-        except Exception as exc:  # 연결 실패 시 명확히
-            raise RuntimeError(f"LM Studio 임베딩 실패({EMBED_URL}, model={EMBED_MODEL}): {exc}. "
-                               "LM Studio에 임베딩 모델이 로드돼 있는지 확인하십시오.") from exc
-        out.extend(item["embedding"] for item in data["data"])
+            out.extend(_embed_call(group))
+        except Exception:  # 배치 실패 → 개별 재시도로 원인 청크만 격리
+            for one in group:
+                try:
+                    out.extend(_embed_call([one]))
+                except Exception:
+                    out.append([0.0] * dim)
+                    failed += 1
+    if failed:
+        print(f"[warn] 임베딩 실패 {failed}건은 영벡터로 격리(검색 미노출)", file=sys.stderr)
     arr = np.asarray(out, dtype=np.float32)
     norms = np.linalg.norm(arr, axis=1, keepdims=True)
     return arr / np.clip(norms, 1e-9, None)  # 정규화 → 내적=코사인
