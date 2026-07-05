@@ -153,8 +153,11 @@ def command_corpus_fetch_cases(args: argparse.Namespace) -> int:
         from .ftc_us_cases import fetch_ftc_us
         keywords = args.keyword or ["environmental", "recyclable", "biodegradable", "sustainable", "green guides"]
         result = fetch_ftc_us(PROJECT_ROOT / "corpus", keywords=keywords, max_pages=args.max_pages, delay=args.delay)
+    elif args.jurisdiction == "EU":
+        from .eu_directives import fetch_eu  # EU는 사건 DB 없음 → 핵심 지침 전문을 EUR-Lex에서 인덱싱
+        result = fetch_eu(PROJECT_ROOT / "corpus", delay=args.delay)
     else:
-        raise ValueError(f"아직 미구현 관할: {args.jurisdiction} (현재 UK=ASA·US=FTC 지원, EU는 후속)")
+        raise ValueError(f"미지원 관할: {args.jurisdiction}")
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 
