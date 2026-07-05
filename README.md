@@ -141,8 +141,9 @@ corpus import-json <path>          사람이 검증한 규범·심결례·판례
 corpus monitor --cadence X         weekly/monthly/pre_filing 변경 감시
 corpus candidates [--status S]     판례·처분 검증 대기열 조회
 corpus candidate-review <id> ...   후보 상태 기록
-corpus fetch-decisions [--keyword 표시광고] [--since YYYY-MM-DD] [--max-pages N]
-                                   공정위 의결서 자동 수집(case.ftc.go.kr, 토큰 불요·증분). raw는 corpus/raw/KR/cases/(gitignore)
+corpus fetch-decisions [--keyword 본문어] [--title 사건명어] [--violation-type 0609*] [--since YYYY-MM-DD]
+                                   공정위 의결서 자동 수집(case.ftc.go.kr, 토큰 불요·증분). 인자 없으면 그린워싱 기본세트
+                                   (부당한 표시광고 위반 0609* + 본문 환경·탄소·그린 등). raw·index는 corpus/raw/KR/cases/(gitignore)
 assess <matter> --mode public|confidential [--with-public-check]   ①추출·③병합
 corroborate <matter>               홈페이지·언론 교차확인
 approve <matter_id> --reviewer ... --scope all|kftc|environment|criminal

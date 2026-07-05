@@ -117,13 +117,20 @@ def command_corpus_candidate_review(args: argparse.Namespace) -> int:
 def command_corpus_fetch_decisions(args: argparse.Namespace) -> int:
     from .ftc_decisions import fetch_decisions
 
+    keywords, violation, title = args.keyword, args.violation_type, args.title
+    if not keywords and not violation and not title:
+        # 기본 = 그린워싱 관련: 부당한 표시광고 위반(0609*) + 본문 환경 키워드
+        violation = "0609*"
+        keywords = ["환경", "친환경", "탄소", "그린", "재활용", "넷제로", "온실가스"]
     result = fetch_decisions(
         PROJECT_ROOT / "corpus",
-        keywords=args.keyword or ["표시광고"],
+        keywords=keywords or [],
         since=args.since,
         max_pages=args.max_pages,
         download=not args.no_download,
         delay=args.delay,
+        title=title,
+        violation_type=violation,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
@@ -397,7 +404,9 @@ def build_parser() -> argparse.ArgumentParser:
     candidate_review.add_argument("--notes")
     candidate_review.set_defaults(func=command_corpus_candidate_review)
     fetch_dec = corpus_sub.add_parser("fetch-decisions", help="공정위 의결서 자동 수집(case.ftc.go.kr, 토큰 불요)")
-    fetch_dec.add_argument("--keyword", action="append", help="검색어(반복 가능). 기본 '표시광고'")
+    fetch_dec.add_argument("--keyword", action="append", help="본문 검색어(반복 가능). 미지정 시 그린워싱 기본세트")
+    fetch_dec.add_argument("--title", help="사건명(caseNm) 검색어")
+    fetch_dec.add_argument("--violation-type", help="위반유형 코드. 예 '0609*'=부당한 표시광고")
     fetch_dec.add_argument("--since", help="의결일 YYYY-MM-DD 이상만")
     fetch_dec.add_argument("--max-pages", type=int, help="키워드당 최대 페이지(미지정 시 전체)")
     fetch_dec.add_argument("--no-download", action="store_true", help="메타데이터만 수집, PDF 미다운로드")

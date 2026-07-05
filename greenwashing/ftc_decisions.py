@@ -98,7 +98,9 @@ def _write_index(cases_dir: Path, seen: dict) -> None:
 
 
 def fetch_decisions(corpus_dir: Path, keywords: list[str], since: str | None = None,
-                    max_pages: int | None = None, download: bool = True, delay: float = 1.0) -> dict:
+                    max_pages: int | None = None, download: bool = True, delay: float = 1.0,
+                    title: str | None = None, violation_type: str | None = None) -> dict:
+    """searchKrwd=본문검색, caseNm=사건명, reprsntVioltTy=위반유형(예 '0609*'=부당한 표시광고)."""
     cases_dir = corpus_dir / "raw" / "KR" / "cases"
     cases_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = cases_dir / "_manifest.json"
@@ -106,14 +108,22 @@ def fetch_decisions(corpus_dir: Path, keywords: list[str], since: str | None = N
     seen: dict = manifest["decisions"]
     now = datetime.now().astimezone().isoformat(timespec="seconds")
     new_count = downloaded = errors = 0
+    base: dict[str, str] = {}
+    if title:
+        base["caseNm"] = title
+    if violation_type:
+        base["reprsntVioltTy"] = violation_type
+    terms = keywords if keywords else [""]  # 본문 키워드 없으면 위반유형·사건명만으로 검색
 
-    for keyword in keywords:
+    for keyword in terms:
         opener = _opener()
         _request(opener, "/ocp/co/ltfr.do")  # 세션 확보
         page = 1
         while max_pages is None or page <= max_pages:
-            html = _request(opener, "/ocp/co/ltfr.do",
-                            {"searchKrwd": keyword, "pageIndex": page}, referer="/ocp/co/ltfr.do").decode("utf-8", "replace")
+            data = {**base, "pageIndex": page}
+            if keyword:
+                data["searchKrwd"] = keyword
+            html = _request(opener, "/ocp/co/ltfr.do", data, referer="/ocp/co/ltfr.do").decode("utf-8", "replace")
             rows = _parse_rows(html)
             if not rows:
                 break
@@ -123,8 +133,9 @@ def fetch_decisions(corpus_dir: Path, keywords: list[str], since: str | None = N
                 key = f"{row['csno']}|{row.get('blno', '')}"
                 if key in seen:
                     continue
-                record = {**row, "keyword": keyword, "retrieved_at": now,
-                          "source_url": f"{BASE}/ocp/co/ltfr.do?searchKrwd={keyword}"}
+                tag = keyword or violation_type or title or ""
+                record = {**row, "keyword": tag, "retrieved_at": now,
+                          "source_url": f"{BASE}/ocp/co/ltfr.do?searchKrwd={keyword}&reprsntVioltTy={violation_type or ''}"}
                 safe = re.sub(r"[^0-9A-Za-z가-힣]", "_", row["csno"])
                 target = cases_dir / f"{safe}__{row.get('fileId', '')}.pdf"
                 if target.exists() and target.stat().st_size > 0:  # 재개: 디스크에 이미 있으면 재다운로드 안 함
@@ -160,6 +171,6 @@ def fetch_decisions(corpus_dir: Path, keywords: list[str], since: str | None = N
     manifest["keywords"] = sorted(set(manifest.get("keywords", []) + keywords))
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     _write_index(cases_dir, seen)
-    return {"status": "COMPLETED", "keywords": keywords, "new_decisions": new_count,
-            "downloaded_pdfs": downloaded, "download_errors": errors,
+    return {"status": "COMPLETED", "body_keywords": keywords, "title": title, "violation_type": violation_type,
+            "new_decisions": new_count, "downloaded_pdfs": downloaded, "download_errors": errors,
             "total_known": len(seen), "cases_dir": str(cases_dir), "manifest": str(manifest_path)}
