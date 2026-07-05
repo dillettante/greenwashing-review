@@ -2,7 +2,7 @@
 
 > **이 문서 하나로 전체를 이해하고, 수정·보완·개선의 기준점으로 삼는다.**
 > 기준일 2026-07-05
-> 관련: [PLAN.md](PLAN.md)(로드맵) · [EVALUATION-SOP.md](EVALUATION-SOP.md)(② 절차) · [MAINTENANCE.md](MAINTENANCE.md)(최신화) · [INSTALL.md](INSTALL.md)(제3자 배포)
+> 관련: [PLAN.md](PLAN.md)(로드맵) · [EVALUATION-SOP.md](EVALUATION-SOP.md)(② 절차) · [MAINTENANCE.md](MAINTENANCE.md)(최신화) · [INSTALL.md](INSTALL.md)(오프라인·zip 배포)
 
 지속가능경영보고서·광고·홍보자료를 입력하면 환경 주장을 추출·평가하고, **변호사 승인 하에** 공정위 신고서·환경부 조사요청서·수사기관 고발장 **초안**을 만드는 로컬 도구다. 한국법(표시광고법·환경기술산업법)만 직접 판단근거로 쓰고, 미국·EU·영국은 비교법적 보강으로 분리한다.
 
