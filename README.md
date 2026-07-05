@@ -145,7 +145,7 @@ corpus fetch-decisions [--keyword 본문어] [--title 사건명어] [--violation
                                    공정위 의결서 자동 수집(case.ftc.go.kr, 토큰 불요·증분). 인자 없으면 그린워싱 기본세트
                                    (부당한 표시광고 위반 0609* + 본문 환경·탄소·그린 등). raw·index는 corpus/raw/KR/cases/(gitignore)
 corpus index-decisions [--rebuild]  수집된 의결서를 로컬 시맨틱 인덱스로(LM Studio 임베딩, 증분). .gw/decision_index/(gitignore)
-corpus fetch-cases --jurisdiction UK [--keyword green]  해외 그린워싱 사례 수집(비교법 보강). 현재 UK=ASA 재결
+corpus fetch-cases --jurisdiction UK|US [--keyword green]  해외 그린워싱 사례 수집(비교법 보강). UK=ASA 재결, US=FTC 사건
 corpus search-decisions "<주장>" [-k 5] [--action 고발] [--since YYYY-MM-DD] [--jurisdiction KR|UK]
                                    주장으로 관련 의결서·재결 시맨틱 검색(300+ 통독 없이 상위 K건). 스킬 ②가 주장별로 호출
 assess <matter> --mode public|confidential [--with-public-check]   ①추출·③병합

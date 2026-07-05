@@ -149,8 +149,12 @@ def command_corpus_fetch_cases(args: argparse.Namespace) -> int:
         from .asa_rulings import fetch_asa
         keywords = args.keyword or ["environmental", "green", "carbon", "sustainable", "climate", "recyclable"]
         result = fetch_asa(PROJECT_ROOT / "corpus", keywords=keywords, max_pages=args.max_pages, delay=args.delay)
+    elif args.jurisdiction == "US":
+        from .ftc_us_cases import fetch_ftc_us
+        keywords = args.keyword or ["environmental", "recyclable", "biodegradable", "sustainable", "green guides"]
+        result = fetch_ftc_us(PROJECT_ROOT / "corpus", keywords=keywords, max_pages=args.max_pages, delay=args.delay)
     else:
-        raise ValueError(f"아직 미구현 관할: {args.jurisdiction} (현재 UK=ASA만 지원, US/EU는 후속)")
+        raise ValueError(f"아직 미구현 관할: {args.jurisdiction} (현재 UK=ASA·US=FTC 지원, EU는 후속)")
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 
