@@ -47,20 +47,36 @@ python3 -m greenwashing draft    <matter_id> --route all                        
 
 ---
 
-## 2. 설치
+## 2. 설치 (처음 clone하는 사용자)
 
-Python 3.11+ 와 `python-docx`, `openpyxl`, `pypdf`, `python-pptx`(모두 `pyproject.toml`에 명시). Node·Codex 의존성은 없다.
+전제: Python 3.11+, Claude Code. (② 정밀평가엔 korean-law MCP, 시맨틱 검색엔 LM Studio 임베딩 추가 필요)
 
 ```bash
-pip install python-docx openpyxl pypdf python-pptx   # 또는: pip install -e .
-python3 -m greenwashing corpus sync --jurisdiction KR       # 국내 법령 DB 최초 구축(네트워크)
-python3 -m greenwashing assess examples/sample-matter --mode public   # 가상 예제로 동작 확인
+git clone https://github.com/dillettante/greenwashing-review && cd greenwashing-review
+pip install python-docx openpyxl pypdf python-pptx numpy               # 또는 pip install -e .
+ln -s "$(pwd)/skills/greenwashing-review" ~/.claude/skills/greenwashing-review   # 스킬 설치
+python3 -m greenwashing corpus sync --jurisdiction KR                  # 국내 법령 DB(필수·네트워크). 없으면 assess 중단
+python3 -m greenwashing assess examples/sample-matter --mode public    # 가상 예제로 동작 확인
 ```
 
-`examples/sample-matter/`는 실제 기업과 무관한 가상 자료다. korean-law MCP는 이 repo에 포함되지 않으므로,
-② 정밀평가를 쓰려면 각자 Claude Code에 korean-law MCP를 별도로 연결한다([INSTALL.md](INSTALL.md)).
+(선택) 비교법 RAG — 의결서·사례 아카이브 재생성 + 시맨틱 인덱스(**LM Studio 임베딩 필요**):
+```bash
+python3 -m greenwashing corpus fetch-decisions                 # 공정위 그린워싱 의결서
+python3 -m greenwashing corpus fetch-cases --jurisdiction UK   # ASA (US/EU도 동일)
+python3 -m greenwashing corpus index-decisions                 # 로컬 벡터 인덱스
+```
 
-제3자(다른 변호사·팀)에게 배포하는 방법은 [INSTALL.md](INSTALL.md) 참조.
+무엇이 바로 되고 무엇이 셋업 필요한가:
+
+| 기능 | 바로 됨 | 필요 셋업 |
+|---|---|---|
+| 카탈로그 열람(무슨 의결서·재결 있는지) | clone만 | — |
+| ① 추출·트리아지, ③ 문서생성(.md/.docx) | `corpus sync` 후 | — |
+| ② 조문 포섭·심결례(정밀평가) | | **korean-law MCP** 연결 |
+| `search-decisions`(KR/UK/US/EU 비교법) | | **LM Studio** + `fetch`/`index` |
+
+- `corpus/raw/`·`.gw/`(벡터)·`matters/`(기밀)는 gitignore → 로컬 재생성/보존. repo엔 코드·문서·카탈로그만.
+- korean-law MCP는 repo 밖 — 각자 Claude Code에 연결. 오프라인·zip 배포는 [INSTALL.md](INSTALL.md).
 
 ---
 
