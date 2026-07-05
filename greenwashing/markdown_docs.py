@@ -125,7 +125,7 @@ def create_assessment_report_md(result: dict[str, Any], authorities: dict[str, d
                 o.append("- 참조 심결례·판례:")
                 o += [f"    - {pr.get('cite','')}" + (f" [{pr['status']}]" if pr.get("status") else "") + (f" — {pr['holding']}" if pr.get("holding") else "") for pr in precs]
             else:
-                o.append("- 참조 심결례·판례: [확인 필요] 공정위 사건검색·사내 판례·심결례 DB로 보강")
+                o.append("- 참조 심결례·판례: 로컬 의결서 아카이브(`corpus/raw/KR/cases/_index.csv`)에서 유사 표시·광고 의결서 검색·대조")
 
             ver = ev.get("verification")
             if ver:

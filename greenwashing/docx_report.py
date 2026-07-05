@@ -129,7 +129,7 @@ def create_assessment_report_docx(result: dict[str, Any], authorities: dict[str,
             if ev.get("misleading"):
                 doc.add_paragraph(f"오인가능성: {ev['misleading']}")
             precs = ev.get("precedents") or []
-            doc.add_paragraph("참조 심결례·판례: " + ("; ".join(f"{pr.get('cite','')}" + (f"[{pr['status']}]" if pr.get("status") else "") for pr in precs) if precs else "[확인 필요] 공정위 사건검색·내부 판례DB로 보강"))
+            doc.add_paragraph("참조 심결례·판례: " + ("; ".join(f"{pr.get('cite','')}" + (f"[{pr['status']}]" if pr.get("status") else "") for pr in precs) if precs else "로컬 의결서 아카이브(corpus/raw/KR/cases/_index.csv)에서 유사 표시·광고 의결서 검색·대조"))
             ver = ev.get("verification")
             if ver:
                 doc.add_paragraph(f"실증·검증(웹): [{ver.get('verdict','미확인')}] {ver.get('summary','')}")

@@ -41,11 +41,11 @@ python3 -m greenwashing assess <matter> --mode public --with-public-check
   - 표시광고법(mst 확인) 제3조(부당 표시광고 금지), 제5조(실증책임)
   - 제품 환경성이면 「환경기술 및 환경산업 지원법」 환경성 표시·광고 조문 + 로컬 corpus의
     「환경성 표시·광고 관리제도에 관한 고시」
-- 심결례·판례: `mcp__korean-law__search_decisions` (domain `ftc`=공정위, `precedent`=판례).
-  검색어는 **공백 AND**이므로 단일어부터 넓게(`친환경`→`친환경 표시`). 결과가 나오면
-  `get_decision_text`로 확정 여부 확인. **없으면 지어내지 말 것** — 국내 그린워싱 심결례는
-  법제처 API로 거의 안 잡힌다. `precedents: []`로 두고 `confirm_needed`에 "공정위 사건검색(ftc.go.kr)·
-  사내 판례·심결례 DB로 심결례 보강 필요"를 남긴다.
+- 심결례·판례: 먼저 **로컬 의결서 아카이브**(`corpus/raw/KR/cases/`, `_index.csv`)에서 유사 표시·광고
+  의결서를 검색·대조한다(`corpus fetch-decisions`로 수집됨). 보조로 `mcp__korean-law__search_decisions`
+  (domain `ftc`·`precedent`)도 시도하되 검색어는 공백 AND라 단일어부터 넓게. **없으면 지어내지 말 것.**
+  아카이브에서 근거 의결서를 찾으면 `precedents`에 사건번호·조치·의결일을 채우고, 없으면 `precedents: []`로 둔다.
+  최종 인용 전 변호사가 의결서 원문·확정 여부를 확인한다(자동 편입 금지).
 
 각 주장을 다음으로 포섭한다:
 - 표시광고법 제3조 제1항 **어느 호**인지 특정: 1호 거짓·과장 / 2호 기만 / 3호 부당비교 / 4호 비방
