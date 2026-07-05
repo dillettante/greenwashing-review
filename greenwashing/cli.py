@@ -136,6 +136,24 @@ def command_corpus_fetch_decisions(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_corpus_index_decisions(args: argparse.Namespace) -> int:
+    from .decision_index import index_decisions
+
+    result = index_decisions(PROJECT_ROOT / "corpus", rebuild=args.rebuild)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
+def command_corpus_search_decisions(args: argparse.Namespace) -> int:
+    from .decision_index import search_decisions
+
+    results = search_decisions(PROJECT_ROOT / "corpus", args.query, k=args.k,
+                               action=args.action, since=args.since)
+    print(json.dumps({"query": args.query, "count": len(results), "results": results},
+                     ensure_ascii=False, indent=2))
+    return 0
+
+
 def command_assess(args: argparse.Namespace) -> int:
     matter_dir = Path(args.matter_folder).expanduser().resolve()
     result = assess_matter(matter_dir, args.mode)
@@ -412,6 +430,15 @@ def build_parser() -> argparse.ArgumentParser:
     fetch_dec.add_argument("--no-download", action="store_true", help="메타데이터만 수집, PDF 미다운로드")
     fetch_dec.add_argument("--delay", type=float, default=1.0, help="요청 간 지연(초)")
     fetch_dec.set_defaults(func=command_corpus_fetch_decisions)
+    index_dec = corpus_sub.add_parser("index-decisions", help="의결서 로컬 시맨틱 인덱스 구축(LM Studio 임베딩, 증분)")
+    index_dec.add_argument("--rebuild", action="store_true", help="전체 재인덱싱")
+    index_dec.set_defaults(func=command_corpus_index_decisions)
+    search_dec = corpus_sub.add_parser("search-decisions", help="주장으로 관련 의결서 시맨틱 검색")
+    search_dec.add_argument("query", help="검색 주장·문구")
+    search_dec.add_argument("-k", type=int, default=5, help="반환 건수")
+    search_dec.add_argument("--action", help="조치 필터(예: 고발, 과징금)")
+    search_dec.add_argument("--since", help="의결일 YYYY-MM-DD 이상")
+    search_dec.set_defaults(func=command_corpus_search_decisions)
 
     assess = sub.add_parser("assess", help="사건 폴더 평가")
     assess.add_argument("matter_folder")
