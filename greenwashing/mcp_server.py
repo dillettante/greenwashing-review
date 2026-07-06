@@ -39,7 +39,7 @@ def search_decisions(query: str, k: int = 5, jurisdiction: str | None = None,
     KR=공정위 표시광고 의결서(직접 근거), UK=ASA 재결·US=FTC 사건·EU=EUR-Lex 지침(비교법 보강).
     jurisdiction으로 관할 필터(KR/UK/US/EU), action으로 조치(고발/과징금/Upheld), since로 일자(YYYY-MM-DD) 필터.
     결과는 상위 후보일 뿐 — 인용 전 사람이 원문·관련성·확정여부를 확인해야 한다(할루시네이션 금지).
-    ※ 사전에 corpus index-decisions로 인덱스가 있어야 하고 LM Studio 임베딩이 필요하다.
+    ※ 사전에 corpus index-decisions로 인덱스가 있어야 한다(sentence-transformers 임베딩, 첫 실행 시 모델 자동 다운로드).
     """
     from .decision_index import search_decisions as _search
     return _search(PROJECT_ROOT / "corpus", query, k=k, jurisdiction=jurisdiction, action=action, since=since)
@@ -90,7 +90,7 @@ def verify_matter(matter_id: str) -> dict:
 
 @mcp.tool()
 def index_decisions(rebuild: bool = False) -> dict:
-    """수집된 의결서·재결·지침을 로컬 시맨틱 인덱스로 구축(증분, LM Studio 임베딩 필요). 오래 걸릴 수 있음."""
+    """수집된 의결서·재결·지침을 로컬 시맨틱 인덱스로 구축(증분, sentence-transformers 임베딩). 오래 걸릴 수 있음."""
     return _cli(["corpus", "index-decisions"] + (["--rebuild"] if rebuild else []))
 
 

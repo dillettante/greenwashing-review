@@ -175,6 +175,15 @@ def index_decisions(corpus_dir: Path, rebuild: bool = False, max_chunks_per_doc:
             "index_dir": str(idir)}
 
 
+def get_decision(corpus_dir: Path, csno: str, jurisdiction: str | None = None) -> dict:
+    """사건번호(csno)로 의결서·재결·지침 전문을 반환. 검색결과 excerpt를 넘어 전체 확인용(원격 서버가 서버측 read)."""
+    for rec in _iter_decisions(corpus_dir):
+        if rec.get("csno") == csno and (jurisdiction is None or rec["jurisdiction"] == jurisdiction):
+            meta = {k: rec.get(k, "") for k in _META if k != "local_path"}  # 서버 로컬경로는 노출 안 함
+            return {**meta, "jurisdiction": rec["jurisdiction"], "text": _doc_text(Path(rec["local_path"]))}
+    return {"error": f"의결서 없음: csno={csno}" + (f", jurisdiction={jurisdiction}" if jurisdiction else "")}
+
+
 def search_decisions(corpus_dir: Path, query: str, k: int = 5, action: str | None = None,
                      since: str | None = None, jurisdiction: str | None = None) -> list[dict]:
     idir = _index_dir(corpus_dir)

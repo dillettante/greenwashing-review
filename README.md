@@ -223,6 +223,21 @@ python3 -m pip install sentence-transformers                               # sea
 ```
 전제: `corpus sync`·`fetch`/`index`로 로컬 데이터 준비 + `search_decisions`엔 sentence-transformers(기본 백엔드). 등록 후 앱 재시작.
 
+### 8-B. 팀 검색 서버 (선택 — 공개데이터만, 같은 네트워크)
+
+비교법 의결서는 **공개데이터**라, 여러 사람이 각자 corpus·모델을 셋업하는 대신 **한 대에 원격 SSE 서버**를 띄우고 나머지는 config 한 줄로 붙을 수 있다. `greenwashing/mcp_remote.py`가 **공개 검색 2개 도구만**(`search_decisions`·`get_decision`) 노출한다 — 기밀 사건 도구(`assess_matter` 등)는 이 서버에 **없다**(코드에서 제외).
+
+```bash
+# 서버 머신(상시가동): fetch/index로 corpus 준비 후
+greenwashing-mcp-remote          # 기본 0.0.0.0:8766 (env GW_MCP_HOST/GW_MCP_PORT)
+```
+```jsonc
+// 클라이언트: 원격 MCP 지원 시
+"greenwashing-search": { "url": "http://<서버IP>:8766/sse" }
+// stdio만 지원 시: { "command": "npx", "args": ["mcp-remote", "http://<서버IP>:8766/sse"] }
+```
+전제·주의: 같은 LAN에서만 접속(외부 노출 안 함) · macOS 인바운드 방화벽에서 8766 허용 · 서버 IP 고정 권장. **자기 사건을 평가(assess→draft)하려면 이 검색 서버로는 안 되고 §2 로컬 설치가 필요하다**(기밀 파이프라인은 로컬 전용).
+
 ---
 
 ## 9. 유지보수 ([MAINTENANCE.md](MAINTENANCE.md))

@@ -17,7 +17,8 @@ search = ["sentence-transformers>=3.0"]   # 시맨틱 검색 로컬 임베딩(�
 
 [project.scripts]
 gw = "greenwashing.cli:main"
-greenwashing-mcp = "greenwashing.mcp_server:main"
+greenwashing-mcp = "greenwashing.mcp_server:main"          # 로컬 stdio(전체 도구, 기밀 포함)
+greenwashing-mcp-remote = "greenwashing.mcp_remote:main"  # 원격 SSE(공개데이터 검색만, 사내 LAN)
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
