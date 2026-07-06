@@ -11,23 +11,23 @@
     "greenwashing": {
       "command": "greenwashing-mcp",
       "env": {
-        "GW_EMBED_URL": "${user_config.embed_url}",
+        "GW_EMBED_BACKEND": "${user_config.embed_backend}",
         "GW_EMBED_MODEL": "${user_config.embed_model}"
       }
     }
   },
   "userConfig": {
-    "embed_url": {
+    "embed_backend": {
       "type": "string",
-      "title": "LM Studio 임베딩 엔드포인트",
-      "description": "search_decisions(비교법 검색)용 로컬 임베딩. 미설치면 검색만 비활성, 나머지 도구는 동작.",
-      "default": "http://localhost:1234/v1/embeddings"
+      "title": "임베딩 백엔드",
+      "description": "sentence-transformers(기본, 로컬 pip 모델) 또는 lmstudio(OpenAI 호환 HTTP). search_decisions 비교법 검색용.",
+      "default": "sentence-transformers"
     },
     "embed_model": {
       "type": "string",
       "title": "임베딩 모델",
-      "description": "LM Studio에 로드된 임베딩 모델명",
-      "default": "text-embedding-nomic-embed-text-v1.5"
+      "description": "sentence-transformers 모델명(HF) 또는 LM Studio 로드 모델명",
+      "default": "intfloat/multilingual-e5-base"
     }
   }
 }

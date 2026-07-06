@@ -13,6 +13,7 @@ dependencies = [
 
 [project.optional-dependencies]
 mcp = ["mcp>=1.0"]   # 로컬 stdio MCP 서버(greenwashing-mcp)용
+search = ["sentence-transformers>=3.0"]   # 시맨틱 검색 로컬 임베딩(기본 백엔드). lmstudio 백엔드는 불요
 
 [project.scripts]
 gw = "greenwashing.cli:main"

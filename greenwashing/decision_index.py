@@ -1,7 +1,8 @@
-"""공정위 의결서 로컬 시맨틱 인덱스 — LM Studio 로컬 임베딩 + numpy 코사인(기밀 안전).
+"""공정위·해외 의결서 로컬 시맨틱 인덱스 — 로컬 임베딩 + numpy 코사인(기밀 안전).
 
 인덱스는 `.gw/decision_index/`(gitignore)에 vectors.npy + chunks.jsonl로 저장한다.
-임베딩은 LM Studio(OpenAI 호환 /v1/embeddings)로 로컬 생성 — 외부 API·토큰 0, 주장 문구가 기기 밖으로 안 나감.
+임베딩은 기본 sentence-transformers(로컬 pip 모델, 외부 API·토큰 0), 옵션으로 LM Studio(OpenAI 호환
+/v1/embeddings)를 GW_EMBED_BACKEND=lmstudio로 선택 — 어느 쪽이든 주장 문구가 기기 밖으로 안 나간다.
 규모가 커지면 동일 인터페이스로 Qdrant 백엔드로 교체 가능(payload=메타).
 """
 from __future__ import annotations
@@ -15,9 +16,31 @@ from urllib.request import Request, urlopen
 
 import numpy as np
 
+# 임베딩 백엔드: 기본 sentence-transformers(로컬 pip 모델, LM Studio 불요) | 옵션 lmstudio(OpenAI 호환 HTTP)
+BACKEND = os.getenv("GW_EMBED_BACKEND", "sentence-transformers").lower()
+_DEFAULT_MODEL = {"sentence-transformers": "intfloat/multilingual-e5-base",
+                  "lmstudio": "text-embedding-nomic-embed-text-v1.5"}
+EMBED_MODEL = os.getenv("GW_EMBED_MODEL", _DEFAULT_MODEL.get(BACKEND, _DEFAULT_MODEL["sentence-transformers"]))
 EMBED_URL = os.getenv("GW_EMBED_URL", "http://localhost:1234/v1/embeddings")
-EMBED_MODEL = os.getenv("GW_EMBED_MODEL", "text-embedding-nomic-embed-text-v1.5")
+# (backend, kind) -> 비대칭 검색 프리픽스. e5=query:/passage:, nomic=search_query/search_document
+_PREFIX = {("sentence-transformers", "query"): "query: ", ("sentence-transformers", "document"): "passage: ",
+           ("lmstudio", "query"): "search_query: ", ("lmstudio", "document"): "search_document: "}
 _META = ("csno", "blno", "csname", "ttcnts", "apdate", "keyword", "local_path")
+_ST_MODEL = None
+
+
+def _st_model():
+    global _ST_MODEL
+    if _ST_MODEL is None:
+        os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")  # numpy+torch libomp 충돌 회피(macOS)
+        os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+        try:
+            from sentence_transformers import SentenceTransformer
+        except ImportError as exc:
+            raise RuntimeError("sentence-transformers 미설치. `pip install sentence-transformers` "
+                               "(또는 환경변수 GW_EMBED_BACKEND=lmstudio).") from exc
+        _ST_MODEL = SentenceTransformer(EMBED_MODEL)
+    return _ST_MODEL
 
 
 def _embed_call(inputs: list[str]) -> list[list[float]]:
@@ -26,20 +49,25 @@ def _embed_call(inputs: list[str]) -> list[list[float]]:
     return [item["embedding"] for item in json.loads(urlopen(req, timeout=120).read())["data"]]
 
 
-def _embed(texts: list[str], prefix: str, batch: int = 16, dim: int = 768) -> np.ndarray:
-    """LM Studio 임베딩(nomic 프리픽스). 배치 실패 시 개별 재시도, 개별 실패는 영벡터로 격리(정렬 유지)."""
+def _embed(texts: list[str], kind: str, batch: int = 16, dim: int = 768) -> np.ndarray:
+    """정규화 임베딩(내적=코사인). BACKEND=sentence-transformers(로컬)|lmstudio(HTTP). kind='query'|'document'."""
+    prefix = _PREFIX[(BACKEND, kind)]
+    if BACKEND == "sentence-transformers":
+        arr = _st_model().encode([f"{prefix}{t}" for t in texts], normalize_embeddings=True,
+                                 batch_size=32, show_progress_bar=False)
+        return np.asarray(arr, dtype=np.float32)
+    # lmstudio HTTP: 배치 실패 시 개별 재시도, 개별 실패는 영벡터로 격리(정렬 유지)
     try:
-        _embed_call([f"{prefix}healthcheck"])  # LM Studio 연결 확인
+        _embed_call([f"{prefix}healthcheck"])
     except Exception as exc:
-        raise RuntimeError(f"LM Studio 임베딩 연결 실패({EMBED_URL}, model={EMBED_MODEL}): {exc}. "
-                           "LM Studio에 임베딩 모델이 로드돼 있는지 확인하십시오.") from exc
+        raise RuntimeError(f"LM Studio 임베딩 연결 실패({EMBED_URL}, model={EMBED_MODEL}): {exc}") from exc
     out: list[list[float]] = []
     failed = 0
     for start in range(0, len(texts), batch):
         group = [f"{prefix}{t}" for t in texts[start:start + batch]]
         try:
             out.extend(_embed_call(group))
-        except Exception:  # 배치 실패 → 개별 재시도로 원인 청크만 격리
+        except Exception:
             for one in group:
                 try:
                     out.extend(_embed_call([one]))
@@ -47,10 +75,10 @@ def _embed(texts: list[str], prefix: str, batch: int = 16, dim: int = 768) -> np
                     out.append([0.0] * dim)
                     failed += 1
     if failed:
-        print(f"[warn] 임베딩 실패 {failed}건은 영벡터로 격리(검색 미노출)", file=sys.stderr)
+        print(f"[warn] 임베딩 실패 {failed}건 영벡터 격리", file=sys.stderr)
     arr = np.asarray(out, dtype=np.float32)
     norms = np.linalg.norm(arr, axis=1, keepdims=True)
-    return arr / np.clip(norms, 1e-9, None)  # 정규화 → 내적=코사인
+    return arr / np.clip(norms, 1e-9, None)
 
 
 def _pdf_text(path: Path) -> str:
@@ -136,7 +164,7 @@ def index_decisions(corpus_dir: Path, rebuild: bool = False, max_chunks_per_doc:
         indexed_docs += 1
 
     if new_texts:
-        vectors.append(_embed(new_texts, "search_document: "))
+        vectors.append(_embed(new_texts, "document"))
         all_vecs = np.vstack(vectors)
         np.save(vec_path, all_vecs)
         with meta_path.open("a", encoding="utf-8") as handle:
@@ -155,7 +183,7 @@ def search_decisions(corpus_dir: Path, query: str, k: int = 5, action: str | Non
         raise RuntimeError("인덱스가 없습니다. 먼저 `corpus index-decisions`를 실행하십시오.")
     vectors = np.load(vec_path)
     meta = [json.loads(l) for l in meta_path.read_text(encoding="utf-8").splitlines()]
-    qv = _embed([query], "search_query: ")[0]
+    qv = _embed([query], "query")[0]
     scores = vectors @ qv
     order = np.argsort(-scores)
     results, seen = [], set()
