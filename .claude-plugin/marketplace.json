@@ -1,0 +1,22 @@
+{
+  "name": "greenwashing-review-marketplace",
+  "owner": {
+    "name": "dillettante",
+    "url": "https://github.com/dillettante"
+  },
+  "plugins": [
+    {
+      "name": "greenwashing-review",
+      "source": {
+        "source": "github",
+        "repo": "dillettante/greenwashing-review"
+      },
+      "description": "한국법 그린워싱(환경 표시·광고) 검토 + 공정위 의결서·UK ASA·US FTC·EU 지침 시맨틱 검색 MCP. 로컬 stdio(기밀 안전).",
+      "version": "0.1.0",
+      "author": { "name": "dillettante" },
+      "homepage": "https://github.com/dillettante/greenwashing-review",
+      "license": "Apache-2.0",
+      "keywords": ["greenwashing", "legal-tech", "korean-law", "esg", "compliance", "mcp"]
+    }
+  ]
+}

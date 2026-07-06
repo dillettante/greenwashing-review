@@ -197,6 +197,31 @@ verify  <matter_id>                무결성 검증(exit 2 = 검토 필요)
 
 ---
 
+## 8-A. MCP 서버로 사용 (선택 — 데스크톱·타 클라이언트)
+
+스킬(Claude Code 전용) 대신/함께 **로컬 stdio MCP 서버**로도 쓸 수 있다. Claude **데스크톱**·Cursor 등 어느 MCP 클라이언트에서나 도구를 부른다(스킬 슬래시가 안 먹던 표면 해결).
+
+- **노출 도구**: `search_decisions`(KR/UK/US/EU 비교법 RAG·★)·`assess_matter`·`get_shortlist`·`corpus_status`·`verify_matter`·`fetch_decisions`·`fetch_cases`·`index_decisions`·`list_matters`
+- **설계**: MCP = 결정론적 배관(추출·검색·문서생성). ② 법적 판단은 여전히 에이전트가 korean-law MCP + 웹으로. **로컬 stdio 전용**(기밀 사건 유출 방지). MCP는 다른 MCP를 못 부르므로 korean-law MCP는 에이전트가 별도 연결.
+
+설치:
+```bash
+python3 -m pip install "mcp" numpy python-docx openpyxl pypdf python-pptx   # 또는 pip install -e ".[mcp]"
+```
+등록(택1):
+- **직접 config**: [mcp-config-example.json](mcp-config-example.json)의 `mcpServers`를 Claude Code(`claude mcp add-json`)·데스크톱 설정에 붙이고 `PYTHONPATH`를 클론 경로로.
+- **플러그인**: [.claude-plugin/plugin.json](.claude-plugin/plugin.json)이 `mcpServers`+`userConfig`를 선언 — 마켓플레이스/플러그인 방식 설치 시 자동 등록.
+
+```jsonc
+{ "mcpServers": { "greenwashing": {
+  "command": "python3", "args": ["-m","greenwashing.mcp_server"],
+  "env": { "PYTHONPATH": "/클론/경로/greenwashing-review", "GW_EMBED_URL": "http://localhost:1234/v1/embeddings" }
+}}}
+```
+전제: `corpus sync`·`fetch`/`index`로 로컬 데이터 준비 + `search_decisions`엔 LM Studio 임베딩. 등록 후 앱 재시작.
+
+---
+
 ## 9. 유지보수 ([MAINTENANCE.md](MAINTENANCE.md))
 
 매주(원문 해시 비교·판례 검색) · 매월(공정위·환경부·법령센터 검색결과 비교) · 제출 전(`pre_filing` 재검증) · 분기(coverage·외국법). 판례·처분은 자동 편입 금지 — 사람 확인 후 `import-json`. `scripts/run_maintenance.sh`·`ops/*.plist` 참고.

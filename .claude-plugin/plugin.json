@@ -1,0 +1,33 @@
+{
+  "name": "greenwashing-review",
+  "version": "0.1.0",
+  "description": "한국법 그린워싱 검토 파이프라인 + KR/UK/US/EU 비교법 시맨틱 검색. 로컬 stdio MCP(기밀 안전).",
+  "author": { "name": "dillettante", "url": "https://github.com/dillettante" },
+  "homepage": "https://github.com/dillettante/greenwashing-review",
+  "repository": "https://github.com/dillettante/greenwashing-review",
+  "license": "Apache-2.0",
+  "keywords": ["greenwashing", "legal-tech", "korean-law", "esg", "compliance", "mcp"],
+  "mcpServers": {
+    "greenwashing": {
+      "command": "greenwashing-mcp",
+      "env": {
+        "GW_EMBED_URL": "${user_config.embed_url}",
+        "GW_EMBED_MODEL": "${user_config.embed_model}"
+      }
+    }
+  },
+  "userConfig": {
+    "embed_url": {
+      "type": "string",
+      "title": "LM Studio 임베딩 엔드포인트",
+      "description": "search_decisions(비교법 검색)용 로컬 임베딩. 미설치면 검색만 비활성, 나머지 도구는 동작.",
+      "default": "http://localhost:1234/v1/embeddings"
+    },
+    "embed_model": {
+      "type": "string",
+      "title": "임베딩 모델",
+      "description": "LM Studio에 로드된 임베딩 모델명",
+      "default": "text-embedding-nomic-embed-text-v1.5"
+    }
+  }
+}

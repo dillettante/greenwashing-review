@@ -1,0 +1,14 @@
+{
+  "//": "직접 등록용 mcpServers 설정 예시 — Claude Code(claude mcp add-json) 또는 데스크톱/Cursor 설정 파일에 붙여넣기. PYTHONPATH를 클론 경로로 바꾸세요. (플러그인 방식이면 .claude-plugin/plugin.json 사용)",
+  "mcpServers": {
+    "greenwashing": {
+      "command": "python3",
+      "args": ["-m", "greenwashing.mcp_server"],
+      "env": {
+        "PYTHONPATH": "/absolute/path/to/greenwashing-review",
+        "GW_EMBED_URL": "http://localhost:1234/v1/embeddings",
+        "GW_EMBED_MODEL": "text-embedding-nomic-embed-text-v1.5"
+      }
+    }
+  }
+}

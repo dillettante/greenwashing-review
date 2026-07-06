@@ -11,8 +11,12 @@ dependencies = [
     "numpy>=1.24",
 ]
 
+[project.optional-dependencies]
+mcp = ["mcp>=1.0"]   # 로컬 stdio MCP 서버(greenwashing-mcp)용
+
 [project.scripts]
 gw = "greenwashing.cli:main"
+greenwashing-mcp = "greenwashing.mcp_server:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
