@@ -236,7 +236,7 @@ greenwashing-mcp-remote          # 기본 0.0.0.0:8766 (env GW_MCP_HOST/GW_MCP_P
 "greenwashing-search": { "url": "http://<서버IP>:8766/sse" }
 // stdio만 지원 시: { "command": "npx", "args": ["mcp-remote", "http://<서버IP>:8766/sse"] }
 ```
-전제·주의: 같은 LAN에서만 접속(외부 노출 안 함) · macOS 인바운드 방화벽에서 8766 허용 · 서버 IP 고정 권장. **자기 사건을 평가(assess→draft)하려면 이 검색 서버로는 안 되고 §2 로컬 설치가 필요하다**(기밀 파이프라인은 로컬 전용).
+전제·주의: **무인증 서버 — 신뢰 LAN에서만 사용** · 같은 LAN에서만 접속(외부 노출 안 함) · macOS 인바운드 방화벽에서 8766 허용 · 서버 IP 고정 권장. **자기 사건을 평가(assess→draft)하려면 이 검색 서버로는 안 되고 §2 로컬 설치가 필요하다**(기밀 파이프라인은 로컬 전용).
 
 ---
 

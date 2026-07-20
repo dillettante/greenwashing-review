@@ -103,11 +103,12 @@ def _save_text(root: Path, record: dict, text: str) -> None:
     record["sha256"] = hashlib.sha256(target.read_bytes()).hexdigest()
 
 
-def _company_crawl(homepage: str, out_dir: Path, max_pages: int) -> list[dict]:
+def _company_crawl(homepage: str, out_dir: Path, max_pages: int) -> tuple[list[dict], int]:
     origin = urlsplit(homepage).netloc.lower()
     queue: deque[tuple[str, int]] = deque([(homepage, 0)])
     seen: set[str] = set()
     records: list[dict] = []
+    fetch_errors = 0
     while queue and len(seen) < max_pages:
         url, depth = queue.popleft()
         clean = url.split("#", 1)[0]
@@ -117,6 +118,7 @@ def _company_crawl(homepage: str, out_dir: Path, max_pages: int) -> list[dict]:
         try:
             body, final_url, content_type = _get(clean)
         except Exception:
+            fetch_errors += 1  # 페이지 수집 실패 — 스냅숏 누락(결과에 표시)
             continue
         if content_type not in {"text/html", "application/xhtml+xml"}:
             continue
@@ -140,12 +142,13 @@ def _company_crawl(homepage: str, out_dir: Path, max_pages: int) -> list[dict]:
         for item in ranked[: max_pages * 2]:
             if item[0] not in seen:
                 queue.append(item)
-    return records
+    return records, fetch_errors
 
 
-def _news_search(queries: list[str], out_dir: Path, max_results: int) -> list[dict]:
+def _news_search(queries: list[str], out_dir: Path, max_results: int) -> tuple[list[dict], int]:
     records: list[dict] = []
     seen: set[str] = set()
+    fetch_errors = 0
     retrieved_at = datetime.now().astimezone().isoformat(timespec="seconds")
     for query in queries:
         url = "https://news.google.com/rss/search?" + urlencode({"q": query, "hl": "ko", "gl": "KR", "ceid": "KR:ko"})
@@ -153,6 +156,7 @@ def _news_search(queries: list[str], out_dir: Path, max_results: int) -> list[di
             body, _, _ = _get(url)
             root = ET.fromstring(body)
         except Exception:
+            fetch_errors += 1  # 검색 질의 실패 — 이 질의의 기사 포인터 전체 누락(결과에 표시)
             continue
         for item in root.findall(".//item")[:max_results]:
             title = item.findtext("title") or ""
@@ -172,11 +176,12 @@ def _news_search(queries: list[str], out_dir: Path, max_results: int) -> list[di
             }
             _save_text(out_dir, record, text)
             records.append(record)
-    return records
+    return records, fetch_errors
 
 
-def _direct_urls(urls: list[str], out_dir: Path) -> list[dict]:
+def _direct_urls(urls: list[str], out_dir: Path) -> tuple[list[dict], int]:
     records = []
+    fetch_errors = 0
     for url in urls:
         try:
             body, final_url, content_type = _get(url)
@@ -184,6 +189,7 @@ def _direct_urls(urls: list[str], out_dir: Path) -> list[dict]:
                 continue
             title, text, _ = _page(body, final_url)
         except Exception:
+            fetch_errors += 1  # 지정 URL 수집 실패 — 스냅숏 누락(결과에 표시)
             continue
         record = {
             "kind": "direct", "title": title, "url": final_url,
@@ -192,7 +198,7 @@ def _direct_urls(urls: list[str], out_dir: Path) -> list[dict]:
         }
         _save_text(out_dir, record, text[:200_000])
         records.append(record)
-    return records
+    return records, fetch_errors
 
 
 def _match(assessment: dict, records: list[dict]) -> list[dict]:
@@ -235,22 +241,27 @@ def corroborate_matter(
     out_dir = matter_dir / "public-evidence" / "web"
     out_dir.mkdir(parents=True, exist_ok=True)
     records: list[dict] = []
+    fetch_errors = {"company_pages": 0, "news_queries": 0, "direct_urls": 0}  # 침묵 누락 방지 — 결과에 노출
     homepage = str(context.get("company_homepage") or "").strip()
     if include_company and homepage:
-        records.extend(_company_crawl(homepage, out_dir, max_company_pages))
+        crawled, fetch_errors["company_pages"] = _company_crawl(homepage, out_dir, max_company_pages)
+        records.extend(crawled)
     public_urls = context.get("public_urls") or []
     if isinstance(public_urls, str):
         public_urls = [public_urls]
-    records.extend(_direct_urls([str(url) for url in public_urls], out_dir))
+    direct, fetch_errors["direct_urls"] = _direct_urls([str(url) for url in public_urls], out_dir)
+    records.extend(direct)
     queries = _queries(assessment, company)
     if include_news:
-        records.extend(_news_search(queries, out_dir, max_news_results))
+        news, fetch_errors["news_queries"] = _news_search(queries, out_dir, max_news_results)
+        records.extend(news)
     records = list({record["url"]: record for record in records}.values())
     matches = _match(assessment, records)
     result = {
         "matter_id": assessment["matter_id"], "created_at": datetime.now().astimezone().isoformat(timespec="seconds"),
         "queries": queries, "source_count": len(records), "company_source_count": sum(r["kind"] == "company" for r in records),
-        "news_pointer_count": sum(r["kind"] == "news" for r in records), "matches": matches, "sources": records,
+        "news_pointer_count": sum(r["kind"] == "news" for r in records), "fetch_errors": fetch_errors,
+        "matches": matches, "sources": records,
         "caveat": "언론 검색 결과는 기사 원문이 아닌 검색 포인터일 수 있으며, 반복 보도는 독립적 실증이 아니다. 공개자료 일치는 진실성을 자동 확정하거나 위험점수를 낮추지 않는다.",
     }
     output_dir = matter_dir / "output"
@@ -258,7 +269,9 @@ def corroborate_matter(
     (output_dir / "1-corroboration.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     lines = [
         "# 공개자료 교차확인 로그", "", f"- 사건: `{assessment['matter_id']}`", f"- 회사 홈페이지 스냅숏: {result['company_source_count']}건",
-        f"- 언론 검색 포인터: {result['news_pointer_count']}건", f"- 주장-자료 문언 매칭: {len(matches)}건", "", f"> {result['caveat']}", "",
+        f"- 언론 검색 포인터: {result['news_pointer_count']}건", f"- 주장-자료 문언 매칭: {len(matches)}건",
+        f"- 수집 실패(회사페이지/뉴스질의/직접URL): {fetch_errors['company_pages']}/{fetch_errors['news_queries']}/{fetch_errors['direct_urls']}건",
+        "", f"> {result['caveat']}", "",
         "## 상충·부정 신호 후보", "",
     ]
     adverse = [m for m in matches if m["signal"] == "potential_adverse_or_contradictory"]

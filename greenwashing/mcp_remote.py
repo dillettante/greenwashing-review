@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
@@ -48,6 +49,7 @@ def get_decision(csno: str, jurisdiction: str | None = None) -> dict:
 
 
 def main() -> None:
+    print("무인증 서버 — 신뢰 LAN에서만 사용", file=sys.stderr)
     mcp.run(transport="sse")
 
 

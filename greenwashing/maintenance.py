@@ -71,14 +71,16 @@ def _current_authorities(db: Database) -> dict[str, dict]:
     return {row["authority_id"]: dict(row) for row in rows}
 
 
-def _collect_case_candidates(db: Database, queries: list[str], queue_dir: Path, now: str) -> list[dict]:
+def _collect_case_candidates(db: Database, queries: list[str], queue_dir: Path, now: str) -> tuple[list[dict], dict]:
     queue_dir.mkdir(parents=True, exist_ok=True)
     found: dict[str, dict] = {}
+    skipped = {"query_errors": 0, "case_fetch_errors": 0}  # 침묵 누락 방지 — 보고서에 노출
     for query in queries:
         search_url = "https://www.law.go.kr/LSW/unSc.do?" + urlencode({"menuId": "10", "query": query})
         try:
             body, final_url, _ = _get(search_url)
         except Exception:
+            skipped["query_errors"] += 1  # 검색 페이지 실패 — 이 질의의 후보 전체 누락
             continue
         decoded = body.decode("utf-8", errors="replace")
         sequences = sorted(set(re.findall(r"precInfoP\.do\?[^\"']*precSeq=(\d+)", decoded)))
@@ -96,6 +98,7 @@ def _collect_case_candidates(db: Database, queries: list[str], queue_dir: Path, 
                 title_match = re.search(r"<title>(.*?)</title>", raw.decode("utf-8", errors="replace"), re.S | re.I)
                 title = re.sub(r"<[^>]+>|\s+", " ", html.unescape(title_match.group(1))).strip() if title_match else candidate_id
             except Exception:
+                skipped["case_fetch_errors"] += 1  # 원문 수집 실패 — 빈 본문은 관련성 필터에 걸려 후보에서 빠짐
                 resolved, digest, snapshot, title = case_url, None, None, candidate_id
                 raw = b""
             plain = re.sub(r"<[^>]+>", " ", raw.decode("utf-8", errors="replace"))
@@ -141,7 +144,7 @@ def _collect_case_candidates(db: Database, queries: list[str], queue_dir: Path, 
                 ("\n고정 환경표시광고 관련성 필터 불충족", row["id"]),
             )
     db.conn.commit()
-    return inserted
+    return inserted, skipped
 
 
 def _watch_official_sources(db: Database, watches: list[dict], now: str) -> list[dict]:
@@ -191,14 +194,15 @@ def monitor_corpus(db: Database, project_root: Path, cadence: str) -> dict:
         if not prior or prior["version_id"] != current["version_id"] or prior["full_text_sha256"] != current["full_text_sha256"]:
             authority_changes.append({"authority_id": authority_id, "before": prior, "after": current})
     registry = json.loads(REGISTRY.read_text(encoding="utf-8"))
-    candidates = _collect_case_candidates(
+    candidates, candidate_skips = _collect_case_candidates(
         db, registry["case_queries"], project_root / "corpus" / "research-queue" / "KR" / "cases", now
     )
     watches = _watch_official_sources(db, registry["official_watches"], now) if cadence in {"monthly", "pre_filing"} else []
     status = "REVIEW_REQUIRED" if sync_error or authority_changes or candidates or any(w["changed"] or w["status"] != "ok" for w in watches) else "PASS"
     report = {
         "status": status, "cadence": cadence, "created_at": now, "authority_sync": sync,
-        "authority_changes": authority_changes, "new_case_candidates": candidates, "official_watches": watches, "sync_error": sync_error,
+        "authority_changes": authority_changes, "new_case_candidates": candidates, "candidate_fetch_skipped": candidate_skips,
+        "official_watches": watches, "sync_error": sync_error,
         "promotion_rule": "판례·처분 후보는 pending_human_review로만 저장되며 원문·확정 여부·후속절차를 사람이 확인한 뒤 case_records로 승격한다.",
     }
     update_dir = project_root / "corpus" / "updates"
@@ -209,7 +213,9 @@ def monitor_corpus(db: Database, project_root: Path, cadence: str) -> dict:
     md_path = update_dir / f"{stamp}-{cadence}.md"
     lines = [
         "# 규제·판례 최신화 보고", "", f"- 실행: {now}", f"- 주기: {cadence}", f"- 상태: **{status}**",
-        f"- 규범 변경: {len(authority_changes)}건", f"- 신규 판례 후보: {len(candidates)}건", f"- 공식 검색 감시: {len(watches)}개",
+        f"- 규범 변경: {len(authority_changes)}건", f"- 신규 판례 후보: {len(candidates)}건",
+        f"- 후보 수집 실패(검색질의/원문): {candidate_skips['query_errors']}건/{candidate_skips['case_fetch_errors']}건",
+        f"- 공식 검색 감시: {len(watches)}개",
         f"- 동기화 오류: {sync_error or '없음'}", "",
         "## 규범 변경", "", *(f"- {x['authority_id']}: {x['before']} → {x['after']}" for x in authority_changes), "",
         "## 신규 판례 후보", "", *(f"- [{x['title']}]({x['source_url']}) — {x['search_query']}" for x in candidates), "",

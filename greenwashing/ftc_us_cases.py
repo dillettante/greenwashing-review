@@ -83,7 +83,7 @@ def fetch_ftc_us(corpus_dir: Path, keywords: list[str], max_pages: int | None = 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else {"decisions": {}}
     seen: dict = manifest["decisions"]
     now = datetime.now().astimezone().isoformat(timespec="seconds")
-    new_count = errors = 0
+    new_count = errors = list_errors = 0
 
     for keyword in keywords:
         page = 0
@@ -91,6 +91,7 @@ def fetch_ftc_us(corpus_dir: Path, keywords: list[str], max_pages: int | None = 
             try:
                 slugs = _list_slugs(keyword, page)
             except Exception:
+                list_errors += 1  # 목록 페이지 실패 — 이 키워드의 남은 페이지가 통째로 누락됨(결과에 표시)
                 break
             fresh = [s for s in slugs if f"US|{s}" not in seen]
             if not slugs or not fresh:  # 새 사건이 없으면 이 키워드 종료
@@ -126,4 +127,5 @@ def fetch_ftc_us(corpus_dir: Path, keywords: list[str], max_pages: int | None = 
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     _write_index(cases_dir, {k: v for k, v in seen.items() if v.get("local_path")})
     return {"status": "COMPLETED", "jurisdiction": "US", "source": "FTC", "keywords": keywords,
-            "new_cases": new_count, "errors": errors, "total_known": len(seen), "cases_dir": str(cases_dir)}
+            "new_cases": new_count, "errors": errors, "list_errors": list_errors,
+            "total_known": len(seen), "cases_dir": str(cases_dir)}
