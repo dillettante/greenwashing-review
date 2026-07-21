@@ -79,6 +79,21 @@ CLI(`_attach_evaluation`)가 이 형식을 읽어 보고서·고발장에 병합
     {"axis": "수질 서사 vs 사법확정 오염", "company_story": "...", "confirmed_reality": "...",
      "gap": "...", "legal_significance": "...", "claim_ids": ["CLM-xxxx"]}
   ],
+  "exec_summary": {
+    "headline": "한 줄 결론(의뢰인이 처음 읽는 문장)",
+    "findings": ["핵심 발견 3~5개 — 축 요약", "..."],
+    "worst_case": "최대 리스크 시나리오(제재·파생 리스크 결합)",
+    "recommendation": "권고(즉시 조치·확인 순서)"
+  },
+  "exposure": {
+    "sanctions": [
+      {"route": "공정위(표시광고법)", "basis": "제9조 제1항 [korean-law MCP로 현행 확인]",
+       "exposure": "관련 매출액 2% 이하 과징금(산정곤란 시 5억 이하) + 시정·공표명령",
+       "benchmark": "유사 사건 제재 수위(사건번호·조치·의결일)"}
+    ],
+    "derivative_risks": ["ESG 평가등급·투자자 소송·입찰 등"],
+    "caveat": "과징금은 관련 매출액 산정에 좌우 — 산정 전 단정 금지"
+  },
   "claims": {
     "CLM-xxxxxxxxxx": {
       "applicability_final": "있음",
@@ -99,11 +114,17 @@ CLI(`_attach_evaluation`)가 이 형식을 읽어 보고서·고발장에 병합
            "url": "https://...", "finding": "인증 실재하나 '재활용 원료'를 '친환경'으로 확대 표현", "stance": "확인"}
         ]
       },
-      "confirm_needed": ["SGS 인증 범위·유효기간", "친환경 매출 산정기준"]
+      "confirm_needed": ["SGS 인증 범위·유효기간", "친환경 매출 산정기준"],
+      "redline": {"revised": "발간물 교정용 수정 제안 문안(한정표현·근거 병기·상충사실 공개)",
+                  "rationale": "왜 이 수정이 위험을 낮추는지"}
     }
   }
 }
 ```
+
+**P1 필드 용도**: `exec_summary`→보고서 최상단 경영진 요약. `exposure`→'정량 리스크·제재 전망' 섹션
+(조문은 korean-law MCP로 현행 확인 후 인용 — 예: 표시광고법 제9조 과징금 상한, 제17조 벌칙).
+`redline`(주장별)→`3-redline.md` 발간 전 수정 권고안 표(방어 상품 산출물). 셋 다 선택적.
 
 필드는 모두 선택적이다. 채운 것만 보고서에 렌더된다. `claim_id`는 1-claims.json/shortlist와 일치해야
 한다(불일치는 assess가 경고). **차별화 규칙**: 주장별 `assessment`에 관문 쟁점·공통 법리를 반복하지

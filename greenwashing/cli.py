@@ -16,6 +16,7 @@ from .markdown_docs import (
     create_claims_table_md,
     create_evidence_table_md,
     create_filing_md,
+    create_redline_md,
 )
 from .korean_corpus import sync_korean_official_corpus
 from .maintenance import monitor_corpus
@@ -210,6 +211,7 @@ def command_assess(args: argparse.Namespace) -> int:
         create_assessment_report_docx(result_dict, authority_map, output_dir / "3-legal-review-report.docx")
         create_claims_table_md(result_dict, output_dir / "3-claims-review.md")
         create_evidence_table_md(result_dict, output_dir / "3-evidence-list.md")
+        create_redline_md(result_dict, output_dir / "3-redline.md")
         create_workbooks(result_dict, authorities, output_dir)
         db.save_matter(result.matter_id, str(matter_dir), args.mode, result.context, result_dict, result.created_at)
     finally:
@@ -311,6 +313,9 @@ def _attach_evaluation(result: dict, output_dir: Path) -> int:
     # 사건 수준 평가(P0-2·3): 관문 쟁점(광고 해당성·대안 경로) + 사건 서사 축
     result["gateway"] = data.get("gateway")
     result["narratives"] = data.get("narratives")
+    # P1: 경영진 요약 + 정량 리스크(과징금 구조·벤치마크·파생 리스크)
+    result["exec_summary"] = data.get("exec_summary")
+    result["exposure"] = data.get("exposure")
     orphans = sorted(set(claims_map) - {c["claim_id"] for c in result["claims"]})
     if orphans:
         result.setdefault("warnings", []).append(

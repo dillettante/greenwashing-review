@@ -68,6 +68,18 @@ def create_assessment_report_docx(result: dict[str, Any], authorities: dict[str,
     _font(sub.add_run(f"사건: {result['matter_id']} | 작성: {result['created_at'][:10]}"), BODY_FONT, 11)
     doc.add_paragraph("변호사 검토용 초안. 위험점수는 우선순위 도구이며 위법성의 자동 결론이 아닙니다.")
 
+    es = result.get("exec_summary") or {}
+    if es:
+        doc.add_heading("경영진 요약 (Executive Summary)", level=1)
+        if es.get("headline"):
+            para = doc.add_paragraph()
+            _font(para.add_run(es["headline"]), BODY_FONT, 11, True)
+        _bullets(doc, es.get("findings") or [])
+        if es.get("worst_case"):
+            doc.add_paragraph(f"최대 리스크 시나리오: {es['worst_case']}")
+        if es.get("recommendation"):
+            doc.add_paragraph(f"권고: {es['recommendation']}")
+
     doc.add_heading("1. 검토 대상 및 전제", level=1)
     _kv(doc, [
         ("기업", ctx.get("company", "[확인 필요]")),
@@ -149,6 +161,26 @@ def create_assessment_report_docx(result: dict[str, Any], authorities: dict[str,
                 cells = table.add_row().cells
                 for j, key in enumerate(("route", "requirements", "sanctions", "pros_cons")):
                     cells[j].text = str(r.get(key, ""))
+
+    exposure = result.get("exposure") or {}
+    if exposure:
+        section += 1
+        doc.add_heading(f"{section}. 정량 리스크·제재 전망", level=1)
+        sanctions = exposure.get("sanctions") or []
+        if sanctions:
+            table = doc.add_table(rows=1, cols=4)
+            table.style = "Table Grid"
+            for j, head in enumerate(("경로", "근거", "노출(상한·구조)", "유사 사건 벤치마크")):
+                table.rows[0].cells[j].text = head
+            for s in sanctions:
+                cells = table.add_row().cells
+                for j, key in enumerate(("route", "basis", "exposure", "benchmark")):
+                    cells[j].text = str(s.get(key, ""))
+        if exposure.get("derivative_risks"):
+            doc.add_paragraph("파생 리스크:")
+            _bullets(doc, exposure["derivative_risks"])
+        if exposure.get("caveat"):
+            doc.add_paragraph(exposure["caveat"])
 
     detailed = evaluated if evaluated else [c for c in claims if c["applicability"] == "있음"][:12]
     section += 1

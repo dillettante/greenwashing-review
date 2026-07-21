@@ -66,6 +66,11 @@ korean-law MCP(판례·심결례)로 정면 검토해 `gateway.ad_applicability`
 개별 주장을 잇는 **구조적 괴리 축 1~3개**를 세운다: 회사의 대외 서사 vs 웹검증으로 확인된 사실
 (행정처분·판결·측정치). 각 축에 `claim_ids`를 매핑한다. 이것이 결론 요약과 고발장 '대상 행위'가 된다.
 
+**②-1a. 경영진 요약·정량 리스크(P1).** `exec_summary`(한 줄 결론·핵심 발견·최대 리스크·권고)와
+`exposure`(과징금 구조·벤치마크·파생 리스크 — 조문은 korean-law MCP로 현행 확인: 표시광고법 제9조
+과징금·제17조 벌칙 등)를 최상위에 쓴다. 위험 높음 이상 주장에는 `redline`(수정 제안 문안)을 붙인다 —
+`3-redline.md` 발간 전 수정 권고안으로 렌더된다(방어 상품 산출물).
+
 **②-2. 주장별 포섭** — `1-shortlist.json`의 각 주장에 대해 korean-law MCP로 근거를 확인하고 포섭한다.
 
 - 법령 원문·현행성: `mcp__korean-law__search_law` → `mcp__korean-law__get_law_text`

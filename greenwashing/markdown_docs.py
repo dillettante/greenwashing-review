@@ -55,6 +55,20 @@ def create_assessment_report_md(result: dict[str, Any], authorities: dict[str, d
             "EVALUATION-SOP.md 절차로 korean-law MCP·웹 검증을 결합해야 실전 근거가 됩니다."
         )
 
+    # 경영진 요약 — 세션 작성(evaluation 최상위 exec_summary). 의뢰인/경영진이 첫 화면에서 결론을 본다.
+    es = result.get("exec_summary") or {}
+    if es:
+        o += ["", "## 경영진 요약 (Executive Summary)", ""]
+        if es.get("headline"):
+            o.append(f"**{es['headline']}**")
+        if es.get("findings"):
+            o.append("")
+            o += [f"{i}. {f}" for i, f in enumerate(es["findings"], 1)]
+        if es.get("worst_case"):
+            o += ["", f"**최대 리스크 시나리오**: {es['worst_case']}"]
+        if es.get("recommendation"):
+            o += ["", f"**권고**: {es['recommendation']}"]
+
     o += ["", "## 1. 검토 대상 및 전제", ""]
     for label, key in [("기업", "company"), ("제품·서비스", "product"), ("매체", "medium"),
                        ("예상 독자", "audience"), ("게시일", "published_date")]:
@@ -148,6 +162,23 @@ def create_assessment_report_md(result: dict[str, Any], authorities: dict[str, d
                 o.append(f"| {_cell(r.get('route'))} | {_cell(r.get('requirements'))} | "
                          f"{_cell(r.get('sanctions'))} | {_cell(r.get('pros_cons'))} |")
 
+    # 정량 리스크·제재 전망 — 세션 작성(exposure). "그래서 얼마짜리 리스크인가"에 답한다.
+    exposure = result.get("exposure") or {}
+    if exposure:
+        section += 1
+        o += ["", f"## {section}. 정량 리스크·제재 전망", ""]
+        sanctions = exposure.get("sanctions") or []
+        if sanctions:
+            o += ["| 경로 | 근거 | 노출(상한·구조) | 유사 사건 벤치마크 |", "|---|---|---|---|"]
+            for s in sanctions:
+                o.append(f"| {_cell(s.get('route'))} | {_cell(s.get('basis'))} | "
+                         f"{_cell(s.get('exposure'))} | {_cell(s.get('benchmark'))} |")
+        if exposure.get("derivative_risks"):
+            o += ["", "**파생 리스크**:"]
+            o += [f"- {r}" for r in exposure["derivative_risks"]]
+        if exposure.get("caveat"):
+            o += ["", f"> {exposure['caveat']}"]
+
     # 주장별 상세 — 정밀평가된 것 우선, 없으면 광고성 상위
     detailed = evaluated if evaluated else [c for c in claims if c["applicability"] == "있음"][:12]
     section += 1
@@ -211,6 +242,11 @@ def create_assessment_report_md(result: dict[str, Any], authorities: dict[str, d
             if ev.get("confirm_needed"):
                 o.append("- [확인 필요]:")
                 o += [f"    - {x}" for x in ev["confirm_needed"]]
+            rl = ev.get("redline")
+            if rl and rl.get("revised"):
+                o += ["", f"**수정 제안(발간물 교정 시)**: {rl['revised']}"]
+                if rl.get("rationale"):
+                    o.append(f"  — 근거: {rl['rationale']}")
 
         # '추가 확보 필요 자료' 기계 보일러플레이트는 미평가 주장에서만 — 평가된 주장은 confirm_needed가 실질을 담는다
         if c["missing_evidence"] and not ev:
@@ -265,6 +301,33 @@ def create_assessment_report_md(result: dict[str, Any], authorities: dict[str, d
               f"시행일 {cit.get('effective_date') or '[확인 필요]'} · 조문 SHA-256 `{cit['provision_sha256']}`"]
 
     _write(output_path, o)
+
+
+# ---------------------------------------------------------------- 레드라인(발간 전 수정 권고안)
+
+def create_redline_md(result: dict[str, Any], output_path: Path) -> bool:
+    """redline이 있는 주장으로 '현재 문안 → 위험 → 수정 제안' 표를 만든다(방어 상품의 핵심 산출물).
+
+    반환: 생성 여부(redline 있는 주장이 없으면 False, 파일 미생성).
+    """
+    rows = [(c, c["evaluation"]["redline"]) for c in result["claims"]
+            if (c.get("evaluation") or {}).get("redline", {}).get("revised")]
+    if not rows:
+        return False
+    rows.sort(key=lambda x: x[0]["page"])
+    o = [f"# 표시·문안 수정 권고안 (레드라인) — {result['matter_id']}", "",
+         f"- 작성일: {result['created_at'][:10]}",
+         "- 용도: 보고서·홍보물 **발간 전 사전진단**. 각 문안의 표시광고법·환경광고 심사지침 위험을 낮추는 최소 수정안.",
+         "- 수정안은 초안이며 사실관계(실증자료 존부)에 따라 변호사가 확정한다.", "",
+         "| 쪽 | 현재 문안 | 위험 | 수정 제안 | 근거 |", "|---|---|---|---|---|"]
+    for c, rl in rows:
+        risk = (c.get("evaluation") or {}).get("risk_final") or c["risk_band"]
+        o.append("| {pg} | {cur} | {rk} | {rev} | {ra} |".format(
+            pg=c["page"], cur=_cell(_oneline(c["quote"], 80)), rk=_cell(risk),
+            rev=_cell(rl["revised"]), ra=_cell(rl.get("rationale", ""))))
+    o += ["", f"총 {len(rows)}건. 수정안 반영 여부와 무관하게 실증자료(제5조) 구비가 선행되어야 한다."]
+    _write(output_path, o)
+    return True
 
 
 # ---------------------------------------------------------------- 좁은 요약표
