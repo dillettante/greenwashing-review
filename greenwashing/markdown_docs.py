@@ -71,44 +71,109 @@ def create_assessment_report_md(result: dict[str, Any], authorities: dict[str, d
               f"{corr.get('news_pointer_count', 0)}건 수집, 주장-자료 문언 매칭 {len(corr.get('matches', []))}건.",
               corr.get("caveat", "")]
 
-    # 결론 요약 — 두 분포
-    counts = {"매우 높음": 0, "높음": 0, "중간": 0, "낮음": 0}
-    for c in claims:
-        counts[c["risk_band"]] += 1
-    o += ["", "## 2. 결론 요약", "",
-          f"**[기계 트리아지 분포]** 환경 주장 {len(claims)}건 — 매우 높음 {counts['매우 높음']} · "
-          f"높음 {counts['높음']} · 중간 {counts['중간']} · 낮음 {counts['낮음']}. 정규식 트리아지 값(법적 판단 아님)."]
     evaluated = [c for c in claims if c.get("evaluation")]
+    narratives = result.get("narratives") or []
+    gateway = result.get("gateway") or {}
+    section = 2  # 이후 섹션 번호는 존재하는 블록에 따라 동적
+
+    # 결론 요약 — 최종 평가 중심. 기계 분포는 내부값(1-assessment.json)으로만 남긴다.
+    o += ["", f"## {section}. 결론 요약", ""]
+    if narratives:
+        axes = " / ".join(f"[{i}] {n.get('axis','')}" for i, n in enumerate(narratives, 1))
+        o.append(f"**핵심 위험 축 {len(narratives)}개** — {axes}. 상세는 '종합 위험 분석'.")
     if evaluated:
         af = {"있음": 0, "불확실": 0, "없음": 0}
         rf = {"매우 높음": 0, "높음": 0, "중간": 0, "낮음": 0}
-        fp = 0
         for c in evaluated:
             ev = c["evaluation"]
             af[ev.get("applicability_final", "불확실")] = af.get(ev.get("applicability_final", "불확실"), 0) + 1
             if ev.get("risk_final") in rf:
                 rf[ev["risk_final"]] += 1
-            if c["applicability"] == "있음" and ev.get("applicability_final") == "없음":
-                fp += 1
         o.append(
-            f"**[정밀평가 최종 분포]** {len(evaluated)}건 정밀평가 — 광고성 있음 {af['있음']} · 불확실 {af['불확실']} · "
-            f"없음 {af['없음']} / 위험 매우 높음 {rf['매우 높음']} · 높음 {rf['높음']} · 중간 {rf['중간']} · 낮음 {rf['낮음']}. "
-            f"기계 분류의 오탐 {fp}건이 걸러졌습니다."
+            f"**[정밀평가 최종 분포]** {len(evaluated)}건 — 광고성 있음 {af['있음']} · 불확실 {af['불확실']} · "
+            f"없음 {af['없음']} / 위험 매우 높음 {rf['매우 높음']} · 높음 {rf['높음']} · 중간 {rf['중간']} · 낮음 {rf['낮음']}."
         )
+        if result.get("claims_source") == "llm":
+            bad = sum(1 for c in claims if (c.get("anchor") or {}).get("status") == "not_found")
+            o.append(f"주장 추출: 세션 통독(LLM) {len(claims)}건 · 원문 앵커 검증 통과 {len(claims) - bad}건"
+                     + (f" · **미확인 {bad}건(인용 재확인 필요)**" if bad else "") + ".")
+    else:
+        counts = {"매우 높음": 0, "높음": 0, "중간": 0, "낮음": 0}
+        for c in claims:
+            counts[c["risk_band"]] += 1
+        o.append(f"**[기계 트리아지 분포 — 참고용]** 환경 주장 {len(claims)}건 — 매우 높음 {counts['매우 높음']} · "
+                 f"높음 {counts['높음']} · 중간 {counts['중간']} · 낮음 {counts['낮음']}. 정규식 값(법적 판단 아님).")
+
+    # 종합 위험 분석(사건 서사) — 회사의 대외 서사 vs 확인된 사실의 구조적 괴리
+    if narratives:
+        section += 1
+        o += ["", f"## {section}. 종합 위험 분석 — 사건 서사", "",
+              "개별 주장 나열이 아니라, 회사의 대외 서사와 확인된 사실의 구조적 괴리를 축으로 종합한다. "
+              "각 축이 신고서·고발장 '대상 행위' 구성의 뼈대가 된다."]
+        for i, n in enumerate(narratives, 1):
+            o += ["", f"### 축 {i}. {n.get('axis', '')}"]
+            if n.get("company_story"):
+                o.append(f"- **회사의 서사**: {n['company_story']}")
+            if n.get("confirmed_reality"):
+                o.append(f"- **확인된 사실**: {n['confirmed_reality']}")
+            if n.get("gap"):
+                o.append(f"- **괴리·법적 의미**: {n['gap']}")
+            if n.get("legal_significance"):
+                o.append(f"- **법적 평가**: {n['legal_significance']}")
+            ids = n.get("claim_ids") or []
+            if ids:
+                o.append(f"- 소속 주장: {', '.join(f'`{x}`' for x in ids)}")
+
+    # 관문 쟁점 — 광고 해당성(전 주장 공통 선결문제) + 대안 경로
+    if gateway:
+        section += 1
+        o += ["", f"## {section}. 관문 쟁점 — 광고 해당성·경로 선택", ""]
+        ad = gateway.get("ad_applicability") or {}
+        if ad:
+            o.append("### 광고 해당성 (전 주장 공통 선결문제)")
+            if ad.get("analysis"):
+                o += ["", ad["analysis"]]
+            for m in ad.get("media") or []:
+                o.append(f"- **{m.get('medium','')}**: {m.get('conclusion','')} — {m.get('reason','')}")
+            for pr in ad.get("precedents") or []:
+                o.append(f"- 근거: {pr.get('cite','')}" + (f" [{pr['status']}]" if pr.get("status") else "")
+                         + (f" — {pr['holding']}" if pr.get("holding") else ""))
+            if ad.get("conclusion"):
+                o += ["", f"**결론**: {ad['conclusion']}"]
+        routes_alt = gateway.get("alternative_routes") or []
+        if routes_alt:
+            o += ["", "### 대안 경로 비교 (광고 해당성이 부정될 경우 포함)", "",
+                  "| 경로 | 요건 | 제재·효과 | 실익·한계 |", "|---|---|---|---|"]
+            for r in routes_alt:
+                o.append(f"| {_cell(r.get('route'))} | {_cell(r.get('requirements'))} | "
+                         f"{_cell(r.get('sanctions'))} | {_cell(r.get('pros_cons'))} |")
 
     # 주장별 상세 — 정밀평가된 것 우선, 없으면 광고성 상위
     detailed = evaluated if evaluated else [c for c in claims if c["applicability"] == "있음"][:12]
-    o += ["", "## 3. 주장별 검토", ""]
+    section += 1
+    claim_sec = section
+    o += ["", f"## {claim_sec}. 주장별 검토", ""]
+    if gateway:
+        o.append(f"광고 해당성은 §{claim_sec - 1} 관문 쟁점의 결론을 전제로 하고, 여기서는 주장별 차별 쟁점만 다룬다.")
     for idx, c in enumerate(detailed, 1):
         ev = c.get("evaluation") or {}
         final_risk = ev.get("risk_final") or c["risk_band"]
-        o += [f"### 3-{idx}. {c['claim_id']} — 최종 위험 {final_risk} (기계 {c['risk_score']}점)", "",
+        o += [f"### {claim_sec}-{idx}. {c['claim_id']} — 최종 위험 {final_risk}", "",
               f"> {c['quote']}", "",
-              f"- 위치: {c['filename']} {c['page']}쪽",
-              f"- 광고성(기계): {c['applicability']}" + (f" → **최종 {ev['applicability_final']}**" if ev.get("applicability_final") else ""),
-              f"- 주장 대상: {c['subject_scope']}",
-              f"- 유형: {', '.join(PATTERN_LABELS.get(p, p) for p in c['patterns'])}",
-              f"- 기계 1차분류(참고, 법적 판단 아님): {c['legal_call']}"]
+              f"- 위치: {c['filename']} {c['page']}쪽"]
+        anchor = c.get("anchor") or {}
+        if anchor.get("status") == "not_found":
+            o.append("- ⚠️ **인용 원문 미확인** — PDF 해당 쪽에서 인용문을 확인하지 못함. 인용 재확인 전 인용 금지")
+        if ev.get("applicability_final"):
+            o.append(f"- 광고성(최종): **{ev['applicability_final']}**")
+        elif not gateway:
+            o.append(f"- 광고성(기계, 참고): {c['applicability']}")
+        o += [f"- 주장 대상: {c['subject_scope']}",
+              f"- 유형: {', '.join(PATTERN_LABELS.get(p, p) for p in c['patterns'])}"]
+        if c.get("why_flagged"):
+            o.append(f"- 선별 사유(세션 추출): {c['why_flagged']}")
+        if not ev:
+            o.append(f"- [미평가] 기계 1차분류(법적 판단 아님): {c['legal_call']}")
 
         if ev:
             o += ["", "**법적 평가 (변호사·korean-law MCP)**"]
@@ -147,16 +212,18 @@ def create_assessment_report_md(result: dict[str, Any], authorities: dict[str, d
                 o.append("- [확인 필요]:")
                 o += [f"    - {x}" for x in ev["confirm_needed"]]
 
-        if c["missing_evidence"]:
+        # '추가 확보 필요 자료' 기계 보일러플레이트는 미평가 주장에서만 — 평가된 주장은 confirm_needed가 실질을 담는다
+        if c["missing_evidence"] and not ev:
             o += ["", "추가 확보 필요 자료:"]
             o += [f"- {m}" for m in c["missing_evidence"]]
-        if c.get("comparative_notes"):
+        if c.get("comparative_notes") and not ev:
             o += ["", "비교법적 보강(한국법상 직접 근거 아님):"]
             o += [f"- {n}" for n in c["comparative_notes"]]
         o.append("")
 
-    # 4. 제출 경로 (구 대응경로 메모 병합)
-    o += ["## 4. 제출 경로 검토", ""]
+    # 제출 경로 (정밀평가 결합 시 최종 위험 기준으로 재계산된 값)
+    section += 1
+    o += [f"## {section}. 제출 경로 검토", ""]
     for route in result["route_recommendations"]:
         o.append(f"- **{ROUTE_LABELS.get(route['route'], route['route'])}**: {route['recommendation']} — {route['reason']}")
     o += ["", "### 경로 공통 선행 확인", "",
@@ -166,7 +233,8 @@ def create_assessment_report_md(result: dict[str, Any], authorities: dict[str, d
           "- 행정조사와 형사절차의 순서 및 중복 위험",
           "- 고발인·피고발인 인적사항, 관할, 시효"]
 
-    o += ["", "## 5. 최종 검증 게이트", "",
+    section += 1
+    o += ["", f"## {section}. 최종 검증 게이트", "",
           "- 사건 당시 시행 법령과 현행 법령을 구분하여 재확인",
           "- 판례·심결례의 원문, 절차단계 및 확정 여부 확인",
           "- 각 주장과 증거의 페이지·파일 해시 대조",
@@ -174,14 +242,15 @@ def create_assessment_report_md(result: dict[str, Any], authorities: dict[str, d
           "- 행위자·게시기간·도달범위·시정 여부 확인",
           "- 변호사 최종 승인 후 제출문서 확정"]
 
-    # 6. 직접 근거 원문
+    # 직접 근거 원문
     cited_ids: set[str] = set()
     cited_provs: dict[tuple[str, str], dict[str, Any]] = {}
     for c in detailed:
         for cit in c.get("legal_citations", []):
             cited_ids.add(cit["authority_id"])
             cited_provs[(cit["authority_id"], cit["provision_no"])] = cit
-    o += ["", "## 6. 직접 근거 원문·버전", ""]
+    section += 1
+    o += ["", f"## {section}. 직접 근거 원문·버전", ""]
     for aid in sorted(cited_ids):
         a = authorities.get(aid, {})
         o.append(f"- {a.get('title', aid)} {a.get('citation') or ''}: {a.get('source_url', '')} "

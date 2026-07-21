@@ -5,7 +5,7 @@ import json
 import sys
 from pathlib import Path
 
-from .analysis import assess_matter, select_shortlist
+from .analysis import assess_matter, recommend_routes_final, select_shortlist
 from .approval import create_approval, require_approval
 from .corpus import audit_corpus, import_verified_json, sync_corpus
 from .corroboration import corroborate_matter
@@ -197,6 +197,9 @@ def command_assess(args: argparse.Namespace) -> int:
             result_dict["corroboration"] = json.loads(corroboration_path.read_text(encoding="utf-8"))
         _attach_legal_citations(result_dict, db)
         evaluated = _attach_evaluation(result_dict, output_dir)
+        if evaluated:
+            # 경로 메모는 기계점수가 아니라 최종 평가 기준으로(구 자기모순 버그 수정)
+            result_dict["route_recommendations"] = recommend_routes_final(result_dict["claims"])
         result_dict["corpus_health"] = health
         _write_shortlist(result, result_dict, output_dir, evaluated)
         assessment_path = output_dir / "1-assessment.json"
@@ -217,6 +220,7 @@ def command_assess(args: argparse.Namespace) -> int:
                 "status": "COMPLETED",
                 "matter_id": result.matter_id,
                 "claims": len(result.claims),
+                "claims_source": result.claims_source,
                 "output_dir": str(output_dir),
                 "warnings": result.warnings,
             },
@@ -304,17 +308,34 @@ def _attach_evaluation(result: dict, output_dir: Path) -> int:
         "evaluated_at": data.get("evaluated_at"),
         "evaluated_count": evaluated,
     }
+    # 사건 수준 평가(P0-2·3): 관문 쟁점(광고 해당성·대안 경로) + 사건 서사 축
+    result["gateway"] = data.get("gateway")
+    result["narratives"] = data.get("narratives")
+    orphans = sorted(set(claims_map) - {c["claim_id"] for c in result["claims"]})
+    if orphans:
+        result.setdefault("warnings", []).append(
+            f"evaluation.json의 주장 {len(orphans)}건이 주장 목록에 없어 병합 누락: {', '.join(orphans[:5])}"
+            + (" 외" if len(orphans) > 5 else "") + " — 1-claims.json에 추가하십시오")
     return evaluated
 
 
 def _write_shortlist(result, result_dict: dict, output_dir: Path, evaluated: int) -> None:
-    """기계 트리아지 → 세션 정밀평가로 넘길 주장을 shortlist.json과 작업지시로 고정한다."""
-    shortlist = select_shortlist(result.claims)
+    """세션 정밀평가로 넘길 주장을 shortlist.json과 작업지시로 고정한다.
+
+    LLM 모드(1-claims.json 존재): 세션이 이미 통독·선별했으므로 전량이 대상, 앵커 상태를 표시.
+    regex 폴백: 기계 트리아지 상위 20건.
+    """
+    llm_mode = getattr(result, "claims_source", "regex") == "llm"
     dict_by_id = {c["claim_id"]: c for c in result_dict["claims"]}
-    rows = [dict_by_id[c.claim_id] for c in shortlist if c.claim_id in dict_by_id]
+    if llm_mode:
+        rows = list(result_dict["claims"])
+    else:
+        shortlist = select_shortlist(result.claims)
+        rows = [dict_by_id[c.claim_id] for c in shortlist if c.claim_id in dict_by_id]
     payload = {
         "matter_id": result.matter_id,
         "generated_at": result.created_at,
+        "claims_source": getattr(result, "claims_source", "regex"),
         "note": "이 목록은 korean-law MCP 정밀평가 대상이다. EVALUATION-SOP.md 절차로 evaluation.json을 작성하라.",
         "claims": [
             {
@@ -324,6 +345,9 @@ def _write_shortlist(result, result_dict: dict, output_dir: Path, evaluated: int
                 "quote": c["quote"],
                 "patterns": c["patterns"],
                 "subject_scope": c["subject_scope"],
+                "anchor": c.get("anchor"),
+                "why_flagged": c.get("why_flagged") or "",
+                "narrative_axis": c.get("narrative_axis") or "",
                 "applicability_mechanical": c["applicability"],
                 "risk_score_mechanical": c["risk_score"],
                 "legal_basis_ids_mechanical": c["legal_basis_ids"],
@@ -336,22 +360,39 @@ def _write_shortlist(result, result_dict: dict, output_dir: Path, evaluated: int
     (output_dir / "1-shortlist.json").write_text(
         json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    lines = [
-        f"# 정밀평가 작업지시 — {result.matter_id}",
-        "",
-        f"기계 트리아지가 {len(result.claims)}건 중 {len(rows)}건을 정밀평가 대상으로 추렸습니다.",
-        f"정밀평가 완료: {evaluated}건. 절차는 EVALUATION-SOP.md, 산출물은 output/evaluation.json.",
-        "",
-        "| # | claim_id | 쪽 | 기계분류 | 기계점수 | 평가완료 | 주장 요약 |",
-        "|---|---|---|---|---|---|---|",
-    ]
-    for index, c in enumerate(rows, 1):
-        summary = c["quote"][:50].replace("|", "/").replace("\n", " ")
-        done = "✅" if c.get("evaluation") else "⬜"
-        lines.append(
-            f"| {index} | {c['claim_id']} | {c['page']} | {c['applicability']} | "
-            f"{c['risk_score']} | {done} | {summary}… |"
-        )
+    anchor_mark = {"anchored": "🔗", "page_corrected": "🔁", "not_found": "⚠️미확인"}
+    lines = [f"# 정밀평가 작업지시 — {result.matter_id}", ""]
+    if llm_mode:
+        bad = sum(1 for c in rows if (c.get("anchor") or {}).get("status") == "not_found")
+        lines += [
+            f"세션 통독 추출(LLM) {len(rows)}건 전량이 정밀평가 대상입니다. 원문 앵커 미확인 {bad}건은 인용을 재확인하십시오.",
+            f"정밀평가 완료: {evaluated}건. 절차는 EVALUATION-SOP.md, 산출물은 output/2-evaluation.json.",
+            "",
+            "| # | claim_id | 쪽 | 앵커 | 서사 축 | 평가완료 | 주장 요약 |",
+            "|---|---|---|---|---|---|---|",
+        ]
+        for index, c in enumerate(rows, 1):
+            summary = c["quote"][:50].replace("|", "/").replace("\n", " ")
+            done = "✅" if c.get("evaluation") else "⬜"
+            mark = anchor_mark.get((c.get("anchor") or {}).get("status", ""), "?")
+            lines.append(f"| {index} | {c['claim_id']} | {c['page']} | {mark} | "
+                         f"{(c.get('narrative_axis') or '-')[:14]} | {done} | {summary}… |")
+    else:
+        lines += [
+            f"기계 트리아지가 {len(result.claims)}건 중 {len(rows)}건을 정밀평가 대상으로 추렸습니다.",
+            "※ 정규식 폴백 모드 — 어휘 없는 위험 주장을 놓칠 수 있으니 세션 통독 추출(1-claims.json)을 권장합니다.",
+            f"정밀평가 완료: {evaluated}건. 절차는 EVALUATION-SOP.md, 산출물은 output/2-evaluation.json.",
+            "",
+            "| # | claim_id | 쪽 | 기계분류 | 기계점수 | 평가완료 | 주장 요약 |",
+            "|---|---|---|---|---|---|---|",
+        ]
+        for index, c in enumerate(rows, 1):
+            summary = c["quote"][:50].replace("|", "/").replace("\n", " ")
+            done = "✅" if c.get("evaluation") else "⬜"
+            lines.append(
+                f"| {index} | {c['claim_id']} | {c['page']} | {c['applicability']} | "
+                f"{c['risk_score']} | {done} | {summary}… |"
+            )
     (output_dir / "1-worklist.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 

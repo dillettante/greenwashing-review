@@ -1,16 +1,20 @@
 # 정밀 법적 평가 절차 (step ②) — korean-law MCP
 
-기준일: 2026-07-05
+기준일: 2026-07-21 (P0 개편: LLM-first 추출·관문 쟁점·사건 서사)
 
-이 문서는 **기계 트리아지(step ①, CLI)** 와 **문서 생성(step ③, CLI)** 사이의
-**법적 판단(step ②)** 을 어떻게 수행하는지 고정한다. 정규식은 법적 판단을 하지 않는다.
+이 문서는 **통독 추출(step ①, 세션)** 과 **문서 생성(step ③, CLI)** 사이의
+**법적 판단(step ②)** 을 어떻게 수행하는지 고정한다. **추출도 판단도 정규식이 하지 않는다** —
+정규식은 어휘 없는 위험 문장을 놓치고 목차 잡음을 올린다(영풍 실측). 세션이 전문을 통독해
+`1-claims.json`을 쓰고, CLI는 원문 앵커 검증·병합·문서생성만 한다.
 판단은 변호사 + Claude 세션이 korean-law MCP로 수행하고 그 결과를 `2-evaluation.json`에 남긴다.
 
 ## 0. 전제
 
-- `python3 -m greenwashing assess <matter> --mode public` 를 먼저 실행해 `output/1-shortlist.json`,
-  `output/1-worklist.md` 가 생성돼 있어야 한다.
-- 정밀평가 대상은 shortlist(광고성·중대성 상위, 최대 20건)뿐이다. 전량이 아니다.
+- **① 통독 추출**: 세션이 `input/` PDF 전문을 읽고 `output/1-claims.json`을 쓴 뒤
+  `python3 -m greenwashing assess <matter> --mode public` 를 실행한다. assess가 각 인용문을
+  PDF와 문자 대조(앵커)해 `1-worklist.md`에 ⚠️미확인을 표시한다 — 해소 전 진행 금지.
+  (1-claims.json이 없으면 정규식 폴백 — 스킬 실행에서는 쓰지 않는다.)
+- 정밀평가 대상 = 1-claims.json 전량(세션이 이미 통독·선별했으므로).
 - `confidential` 사건은 외부 전송이 금지되나 korean-law MCP는 공식 법령 조회이므로
   사건 내부자료를 프롬프트에 넣지 않는 범위에서 사용한다(주장 문구·유형만 질의).
 
@@ -18,6 +22,11 @@
 
 Claude 세션(로컬 Claude Code CLI)에서 다음을 수행한다.
 
+0. **관문 쟁점(gateway)** — 주장별 반복 금지, 한 번 깊게: (a) 광고 해당성(해당 매체가 표시광고법상
+   '광고'인가)을 판례·심결례로 정면 검토, 매체별 결론. (b) 광고성 부정 시 대안 경로(환경기술산업법
+   직접 적용·자본시장법 공시규제 등)를 요건·제재·실익로 비교. → `gateway` 키에 저장.
+0-1. **사건 서사(narratives)** — 회사의 대외 서사 vs 웹검증으로 확인된 사실(행정처분·판결·측정치)의
+   구조적 괴리 축 1~3개를 세우고 각 축에 `claim_ids`를 매핑. 이것이 보고서 결론과 고발장 뼈대가 된다.
 1. `output/1-shortlist.json` 을 읽는다.
 2. 각 주장에 대해 korean-law MCP로 **직접 근거와 사례**를 확인한다.
    - 법령 원문: `search_law` → `get_law_text` (표시광고법 제3조, 환경기술산업법 제16조의10 등)
@@ -54,6 +63,22 @@ CLI(`_attach_evaluation`)가 이 형식을 읽어 보고서·고발장에 병합
   "matter_id": "example-fy2025",
   "evaluated_by": "홍길동",
   "evaluated_at": "2026-07-05",
+  "gateway": {
+    "ad_applicability": {
+      "analysis": "지속가능경영보고서의 광고 해당성 법리 검토(대법원 광고 개념·공정위 실무)...",
+      "media": [{"medium": "지속가능경영보고서(웹 공개)", "conclusion": "다툼 있음", "reason": "..."}],
+      "precedents": [{"cite": "...", "status": "확인 필요", "holding": "..."}],
+      "conclusion": "성립 가능성 우위 — 홈페이지 게시·홍보 활용 사실 확인 시"
+    },
+    "alternative_routes": [
+      {"route": "환경기술산업법 제16조의10(환경부)", "requirements": "제품 환경성 관련 표시·광고",
+       "sanctions": "시정명령·과징금", "pros_cons": "광고 해당성 논쟁 우회 가능, 제품성 요건 필요"}
+    ]
+  },
+  "narratives": [
+    {"axis": "수질 서사 vs 사법확정 오염", "company_story": "...", "confirmed_reality": "...",
+     "gap": "...", "legal_significance": "...", "claim_ids": ["CLM-xxxx"]}
+  ],
   "claims": {
     "CLM-xxxxxxxxxx": {
       "applicability_final": "있음",
@@ -80,7 +105,10 @@ CLI(`_attach_evaluation`)가 이 형식을 읽어 보고서·고발장에 병합
 }
 ```
 
-필드는 모두 선택적이다. 채운 것만 보고서에 렌더된다. `claim_id`는 shortlist의 것과 일치해야 한다.
+필드는 모두 선택적이다. 채운 것만 보고서에 렌더된다. `claim_id`는 1-claims.json/shortlist와 일치해야
+한다(불일치는 assess가 경고). **차별화 규칙**: 주장별 `assessment`에 관문 쟁점·공통 법리를 반복하지
+말 것(gateway가 담당). 같은 심결례를 3건 이상 주장에 복붙하지 말 것 — 주장별로
+`corpus search-decisions` 실호출로 차별화된 후보를 찾고, 없으면 비워 둔다.
 `verification.verdict`는 부합/과장/불일치/반증/미확인, `sources[].stance`는 확인/반증/중립.
 `risk_final`은 웹 검증 결과를 반영해 확정한다(반증 발견 시 상향, 완전 실증 시 오인성 판단에 반영).
 

@@ -71,6 +71,10 @@ class ClaimFinding:
     legal_call: str = ""
     missing_evidence: list[str] = field(default_factory=list)
     comparative_notes: list[str] = field(default_factory=list)
+    # LLM-first 추출 시 원문 대조 결과: {"status": "anchored|page_corrected|not_found", "page": N}
+    anchor: dict[str, Any] | None = None
+    why_flagged: str = ""          # LLM 추출 시 세션이 남긴 위험 가설(트리아지 근거)
+    narrative_axis: str = ""       # 사건 서사 축 힌트(②에서 narratives로 확정)
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
@@ -89,6 +93,7 @@ class AssessmentResult:
     claims: list[ClaimFinding]
     route_recommendations: list[dict[str, str]]
     warnings: list[str]
+    claims_source: str = "regex"  # "llm"(1-claims.json 통독 추출) | "regex"(폴백)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -100,4 +105,5 @@ class AssessmentResult:
             "claims": [c.to_dict() for c in self.claims],
             "route_recommendations": self.route_recommendations,
             "warnings": self.warnings,
+            "claims_source": self.claims_source,
         }

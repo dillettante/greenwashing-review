@@ -327,9 +327,22 @@ def assess_matter(matter_dir: Path, mode: str) -> AssessmentResult:
     text_pages = [page for page in input_pages if page.text.strip()]
     if not text_pages:
         raise ValueError("검토 대상에서 텍스트를 추출하지 못했습니다. OCR 상태를 확인하십시오")
-    claims = extract_claims(text_pages, [p for p in evidence_pages if p.text.strip()], context)
-    if not claims:
-        warnings.append("환경 관련 주장을 탐지하지 못했습니다. 이미지·표에만 존재하는지 사람이 확인해야 합니다.")
+    clean_evidence = [p for p in evidence_pages if p.text.strip()]
+    # LLM-first: 세션이 통독 추출한 1-claims.json이 있으면 그것이 주장 목록이다(P0-1).
+    # CLI는 원문 앵커링(할루시네이션 게이트)만 결정론적으로 수행. 정규식 추출은 폴백.
+    from .llm_extraction import llm_claims_to_findings, load_llm_claims
+    llm_data = load_llm_claims(matter_dir / "output")
+    if llm_data:
+        claims, llm_warnings = llm_claims_to_findings(llm_data, text_pages, clean_evidence)
+        warnings.extend(llm_warnings)
+        claims_source = "llm"
+        if not claims:
+            raise ValueError("1-claims.json에 유효한 주장이 없습니다")
+    else:
+        claims = extract_claims(text_pages, clean_evidence, context)
+        claims_source = "regex"
+        if not claims:
+            warnings.append("환경 관련 주장을 탐지하지 못했습니다. 이미지·표에만 존재하는지 사람이 확인해야 합니다.")
     matter_id = str(context.get("matter_id") or matter_dir.name)
     return AssessmentResult(
         matter_id=matter_id,
@@ -340,4 +353,29 @@ def assess_matter(matter_dir: Path, mode: str) -> AssessmentResult:
         claims=claims,
         route_recommendations=recommend_routes(claims, context),
         warnings=warnings,
+        claims_source=claims_source,
     )
+
+
+def recommend_routes_final(claim_dicts: list[dict[str, Any]]) -> list[dict[str, str]]:
+    """정밀평가(②) 결합 후 경로 재계산 — 기계점수가 아니라 **최종** 광고성·위험 기준.
+
+    구 버그: 경로 메모가 기계 분포('매우 높음 2건')를 인용해 최종 분포(0건)와 모순됐다.
+    """
+    evaluated = [c for c in claim_dicts if c.get("evaluation")]
+    actionable = [c for c in evaluated if (c["evaluation"].get("applicability_final") or "불확실") != "없음"]
+    product = [c for c in actionable if c.get("subject_scope") in {"제품", "포장·용기", "원료·소재"}]
+    very_high = [c for c in actionable if c["evaluation"].get("risk_final") == "매우 높음"]
+    high_or_above = [c for c in actionable if c["evaluation"].get("risk_final") in {"매우 높음", "높음"}]
+    return [
+        {"route": "kftc",
+         "recommendation": "검토" if actionable else "비권고",
+         "reason": f"정밀평가에서 광고 해당 가능(최종 있음·불확실) {len(actionable)}건, 그중 위험 높음 이상 {len(high_or_above)}건. "
+                   "관문 쟁점(광고 해당성) 결론을 전제로 소비자 오인성·실증 여부 중심 검토."},
+        {"route": "environment",
+         "recommendation": "우선 검토" if product else "보충 검토",
+         "reason": f"제품·포장·원료 환경성 주장 {len(product)}건(최종 기준). 환경기술 및 환경산업 지원법 적용대상 확인 필요."},
+        {"route": "criminal",
+         "recommendation": "변호사 별도 승인 후 검토" if very_high else "현 단계 보류",
+         "reason": f"최종 위험 '매우 높음' {len(very_high)}건. 구성요건·고의·행위자·시효와 행정조사 선행 필요성을 별도 확인."},
+    ]
