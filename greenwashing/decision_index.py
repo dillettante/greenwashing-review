@@ -100,7 +100,7 @@ def _doc_text(path: Path) -> str:
 
 def _iter_decisions(corpus_dir: Path):
     """모든 관할(KR PDF·UK/US/EU 텍스트)의 다운로드된 결정을 jurisdiction 태그와 함께 순회."""
-    for jx in ("KR", "UK", "US", "EU"):
+    for jx in ("KR", "KR-PREC", "UK", "US", "EU"):
         mp = corpus_dir / "raw" / jx / "cases" / "_manifest.json"
         if not mp.exists():
             continue

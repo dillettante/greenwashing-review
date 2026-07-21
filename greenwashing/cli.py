@@ -137,6 +137,15 @@ def command_corpus_fetch_decisions(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_corpus_fetch_precedents(args: argparse.Namespace) -> int:
+    from .precedents import fetch_precedents
+
+    result = fetch_precedents(PROJECT_ROOT / "corpus", keywords=args.keyword,
+                              since=args.since, max_pages=args.max_pages, delay=args.delay)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
 def command_corpus_index_decisions(args: argparse.Namespace) -> int:
     from .decision_index import index_decisions
 
@@ -515,6 +524,12 @@ def build_parser() -> argparse.ArgumentParser:
     fetch_dec.add_argument("--no-download", action="store_true", help="메타데이터만 수집, PDF 미다운로드")
     fetch_dec.add_argument("--delay", type=float, default=1.0, help="요청 간 지연(초)")
     fetch_dec.set_defaults(func=command_corpus_fetch_decisions)
+    fetch_prec = corpus_sub.add_parser("fetch-precedents", help="법제처 판례 수집(국가법령정보 DRF, 본문검색·토큰 불요)")
+    fetch_prec.add_argument("--keyword", action="append", help="본문 검색어(반복). 미지정 시 그린워싱 기본세트")
+    fetch_prec.add_argument("--since", help="선고일 YYYY-MM-DD 이상만")
+    fetch_prec.add_argument("--max-pages", type=int, help="검색어당 최대 페이지(100건/페이지)")
+    fetch_prec.add_argument("--delay", type=float, default=0.4, help="요청 간 지연(초)")
+    fetch_prec.set_defaults(func=command_corpus_fetch_precedents)
     index_dec = corpus_sub.add_parser("index-decisions", help="의결서 로컬 시맨틱 인덱스 구축(LM Studio 임베딩, 증분)")
     index_dec.add_argument("--rebuild", action="store_true", help="전체 재인덱싱")
     index_dec.set_defaults(func=command_corpus_index_decisions)
@@ -523,7 +538,8 @@ def build_parser() -> argparse.ArgumentParser:
     search_dec.add_argument("-k", type=int, default=5, help="반환 건수")
     search_dec.add_argument("--action", help="조치 필터(예: 고발, 과징금, Upheld)")
     search_dec.add_argument("--since", help="의결일 YYYY-MM-DD 이상")
-    search_dec.add_argument("--jurisdiction", choices=["KR", "UK", "US", "EU"], help="관할 필터")
+    search_dec.add_argument("--jurisdiction", choices=["KR", "KR-PREC", "UK", "US", "EU"],
+                            help="관할 필터. KR=공정위 의결서, KR-PREC=법원 판례")
     search_dec.set_defaults(func=command_corpus_search_decisions)
     fetch_cases = corpus_sub.add_parser("fetch-cases", help="해외 그린워싱 사례 수집(비교법 보강). 현재 UK=ASA")
     fetch_cases.add_argument("--jurisdiction", choices=["UK", "US", "EU"], required=True)

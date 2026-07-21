@@ -28,13 +28,21 @@ Claude 세션(로컬 Claude Code CLI)에서 다음을 수행한다.
 0-1. **사건 서사(narratives)** — 회사의 대외 서사 vs 웹검증으로 확인된 사실(행정처분·판결·측정치)의
    구조적 괴리 축 1~3개를 세우고 각 축에 `claim_ids`를 매핑. 이것이 보고서 결론과 고발장 뼈대가 된다.
 1. `output/1-shortlist.json` 을 읽는다.
-2. 각 주장에 대해 korean-law MCP로 **직접 근거와 사례**를 확인한다.
-   - 법령 원문: `search_law` → `get_law_text` (표시광고법 제3조, 환경기술산업법 제16조의10 등)
-   - 공정위 심결례: `search_decisions(domain="ftc", query=…)`
-   - 판례: `search_decisions(domain="precedent", query=…)` → `get_decision_text`
+2. 각 주장에 대해 **직접 근거와 사례**를 확인한다.
+   - 법령 원문: `mcp__korean-law__search_law` → `get_law_text` (표시광고법 제3조·제5조·제9조·제17조,
+     환경기술산업법 제16조의10 등). 인용 전 **현행 시행 여부**를 반드시 확인한다(§2-2).
+   - **심결례·판례는 5단계 루프**(SKILL.md ②-2와 동일). 판례 직접검색이 잘 안 되는 이유는
+     법제처 판례 API에 관련도 랭킹이 없고 선고일 역순으로만 정렬되기 때문이다. 대신 **의결서를 다리로 쓴다**:
+     ① `mcp__ftc-decisions__search_ftc_decisions` (공정위 의결서 전량 시맨틱) — 사내망 밖이면
+        로컬 폴백 `corpus search-decisions --jurisdiction KR`
+     ② 의결서에서 인용 판례 사건번호 추출(`대법원 YYYY. M. D. 선고 NNNN두NNNN 판결`)
+     ③ `search_decisions(domain="precedent", options={"caseNumber":"<사건번호>"})` → id →
+        `execute_tool("get_precedent_text", {"id": id})` → 판시사항·판결요지·참조조문·참조판례
+     ④ 확정·변경 여부: `query="<사건번호>"`로 **피인용 판례** 확인(참조판례 체인은 ③으로 재귀 확장)
+     ⑤ 비교법 보강: `corpus search-decisions --jurisdiction UK|US|EU`(직접 근거 아님)
    - 해석례 필요 시: `search_decisions(domain="interpretation", …)`
-   - 검색어는 **공백 AND**로 처리되므로 넓게 시작해 좁힌다(예: `환경` → `친환경 표시`).
-     국내 그린워싱 판례는 얇으므로 공정위 심결례·심사지침을 우선한다.
+   - **파라미터 주의**: `caseNumber`=그 판례 정확 조회 / `query`=그 판례를 인용한 다른 판례.
+     `options={"search":2}`는 본문검색(재현율↑)이나 **랭킹이 없어 상위 결과가 무관**하므로 기본값(1) 유지.
 3. 각 주장을 **포섭**한다. 표시광고법 제3조 제1항의 어느 호인지 특정한다.
    - 1호 거짓·과장 / 2호 기만 / 3호 부당 비교 / 4호 비방
    - 제품 환경성이면 환경기술 및 환경산업 지원법상 환경성 표시·광고 기준(제16조의10 등)·
