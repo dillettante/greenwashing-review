@@ -173,6 +173,21 @@ def command_corpus_search_decisions(args: argparse.Namespace) -> int:
     return 0
 
 
+def _resolve_purpose(args: argparse.Namespace, matter_dir: Path) -> str:
+    """검토 목적: CLI 인자 > context.yaml purpose_mode > 기본 both.
+
+    defense=발간 전 사전진단(레드라인 중심) / offense=고발 준비(신고서 중심) / both=둘 다.
+    """
+    if getattr(args, "purpose", None):
+        return args.purpose
+    try:
+        from .context import load_context
+        value = str(load_context(matter_dir / "context.yaml").get("purpose_mode", "")).strip().lower()
+        return value if value in {"defense", "offense", "both"} else "both"
+    except Exception:
+        return "both"
+
+
 def command_assess(args: argparse.Namespace) -> int:
     matter_dir = Path(args.matter_folder).expanduser().resolve()
     result = assess_matter(matter_dir, args.mode)
@@ -202,6 +217,7 @@ def command_assess(args: argparse.Namespace) -> int:
             # 경로 메모는 기계점수가 아니라 최종 평가 기준으로(구 자기모순 버그 수정)
             result_dict["route_recommendations"] = recommend_routes_final(result_dict["claims"])
         result_dict["corpus_health"] = health
+        result_dict["purpose"] = _resolve_purpose(args, matter_dir)
         _write_shortlist(result, result_dict, output_dir, evaluated)
         assessment_path = output_dir / "1-assessment.json"
         assessment_path.write_text(json.dumps(result_dict, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -211,7 +227,8 @@ def command_assess(args: argparse.Namespace) -> int:
         create_assessment_report_docx(result_dict, authority_map, output_dir / "3-legal-review-report.docx")
         create_claims_table_md(result_dict, output_dir / "3-claims-review.md")
         create_evidence_table_md(result_dict, output_dir / "3-evidence-list.md")
-        create_redline_md(result_dict, output_dir / "3-redline.md")
+        if result_dict["purpose"] in {"defense", "both"}:
+            create_redline_md(result_dict, output_dir / "3-redline.md")
         create_workbooks(result_dict, authorities, output_dir)
         db.save_matter(result.matter_id, str(matter_dir), args.mode, result.context, result_dict, result.created_at)
     finally:
@@ -427,6 +444,10 @@ def command_draft(args: argparse.Namespace) -> int:
     finally:
         db.close()
     output_dir = _output_dir(Path(matter["matter_path"]))
+    if matter["assessment"].get("purpose") == "defense":
+        raise PermissionError(
+            "이 사건은 defense(발간 전 사전진단) 목적으로 평가됐습니다. 고발·신고 초안이 필요하면 "
+            "`assess --purpose offense`(또는 both)로 재평가한 뒤 다시 실행하십시오.")
     routes = ["kftc", "environment", "criminal"] if args.route == "all" else [args.route]
     created: list[str] = []
     filenames = {
@@ -514,6 +535,9 @@ def build_parser() -> argparse.ArgumentParser:
     assess = sub.add_parser("assess", help="사건 폴더 평가")
     assess.add_argument("matter_folder")
     assess.add_argument("--mode", choices=["public", "confidential"], required=True)
+    assess.add_argument("--purpose", choices=["defense", "offense", "both"],
+                        help="검토 목적. defense=발간 전 사전진단(레드라인) / offense=고발 준비 / both(기본). "
+                             "미지정 시 context.yaml의 purpose_mode, 그것도 없으면 both")
     assess.add_argument("--with-public-check", action="store_true", help="회사 홈페이지·언론 공개자료 수집 후 재평가")
     assess.add_argument("--max-company-pages", type=int, default=20)
     assess.add_argument("--max-news-results", type=int, default=5)

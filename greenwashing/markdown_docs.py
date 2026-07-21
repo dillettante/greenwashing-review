@@ -70,6 +70,11 @@ def create_assessment_report_md(result: dict[str, Any], authorities: dict[str, d
             o += ["", f"**권고**: {es['recommendation']}"]
 
     o += ["", "## 1. 검토 대상 및 전제", ""]
+    purpose_label = {"defense": "발간 전 사전진단(방어) — 수정 권고안 중심",
+                     "offense": "신고·고발 준비(공격) — 제출문서 중심",
+                     "both": "사전진단·신고 준비 겸용"}
+    if result.get("purpose"):
+        o.append(f"- **검토 목적**: {purpose_label.get(result['purpose'], result['purpose'])}")
     for label, key in [("기업", "company"), ("제품·서비스", "product"), ("매체", "medium"),
                        ("예상 독자", "audience"), ("게시일", "published_date")]:
         o.append(f"- **{label}**: {ctx.get(key, '[확인 필요]')}")

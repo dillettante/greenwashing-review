@@ -124,13 +124,20 @@ WebSearch/WebFetch(필요 시 `agent-reach` 스킬)로 확인한다. EVALUATION-
 
 ### ③ 병합·문서·게이트
 ```bash
-python3 -m greenwashing assess <matter> --mode public   # 2-evaluation.json 자동 병합
+python3 -m greenwashing assess <matter> --mode public [--purpose defense|offense|both]  # 병합
 python3 -m greenwashing verify <matter_id>
 # 변호사 승인 후에만:
 python3 -m greenwashing approve <matter_id> --reviewer "홍길동" --scope all
 python3 -m greenwashing draft   <matter_id> --route all
 ```
 보고서에 `법적 평가(변호사·korean-law MCP)` 블록이 붙고, 미평가 주장은 `[미평가]`로 남는다.
+
+**목적 모드**: `--purpose defense`(발간 전 사전진단 — 레드라인 생성, `draft` 차단) / `offense`(신고·고발 준비) /
+`both`(기본). 미지정 시 `context.yaml`의 `purpose_mode`를 따른다.
+
+**품질 게이트(verify)**: 위험 높음 이상인데 웹검증 없음 · 심결례 누락 · 판정↔위험 부정합(반증인데 중간 등) ·
+동일 심결례 4건 이상 반복 인용 · **인용 앵커 실패(오류)** 를 점검한다. 경고가 뜨면 해당 항목을 보강하되,
+**경고 0을 목표로 억지 조정하지 않는다**(SOP §3-A).
 
 ## 안전 경계
 

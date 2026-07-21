@@ -18,6 +18,53 @@ REQUIRED_ASSESSMENT_FILES = (
     "3-evidence-list.xlsx",
 )
 
+# P2-8 판정↔위험 결정표: (verification.verdict, 광고성 최종) → 허용 risk_final 집합.
+# 자의적 등급을 막는다. 예: '반증'인데 '중간'은 근거 없이 낮춘 것 → 경고.
+VERDICT_RISK_FLOOR = {"반증": "높음", "불일치": "높음", "과장": "중간", "부합": "낮음", "미확인": "낮음"}
+RISK_ORDER = {"낮음": 0, "중간": 1, "높음": 2, "매우 높음": 3}
+MAX_PRECEDENT_REUSE = 3  # 같은 심결례를 이 건수 초과 주장에 인용하면 템플릿 반죽 경고
+
+
+def _evaluation_quality_warnings(claims: list[dict[str, Any]]) -> list[str]:
+    """P2-7·8: 정밀평가의 최소 품질을 기계적으로 점검한다(내용 판단이 아니라 절차 이행 여부).
+
+    ① 위험 높음 이상인데 웹검증(verification) 없음 → 근거 없는 상향
+    ② 판정과 risk_final의 부정합(반증인데 중간 등)
+    ③ 동일 심결례를 여러 주장에 복붙(차별화 실패 — 영풍 1차의 핵심 결함)
+    """
+    warnings: list[str] = []
+    evaluated = [c for c in claims if c.get("evaluation")]
+    if not evaluated:
+        return warnings
+
+    precedent_use: dict[str, list[str]] = {}
+    for claim in evaluated:
+        ev = claim["evaluation"]
+        cid = claim["claim_id"]
+        risk = ev.get("risk_final")
+        verdict = (ev.get("verification") or {}).get("verdict")
+
+        if risk in {"높음", "매우 높음"} and not ev.get("verification"):
+            warnings.append(f"{cid}: 위험 '{risk}'인데 실증·검증(웹) 결과가 없음 — 근거 보강 필요")
+        if not ev.get("precedents"):
+            warnings.append(f"{cid}: 참조 심결례 없음 — corpus search-decisions로 유사 사건 확인 필요")
+        if verdict and risk:
+            floor = VERDICT_RISK_FLOOR.get(verdict)
+            if floor and RISK_ORDER.get(risk, 0) < RISK_ORDER[floor]:
+                warnings.append(
+                    f"{cid}: 판정 '{verdict}'인데 위험 '{risk}' — 통상 '{floor}' 이상이어야 함(하향 사유를 assessment에 명시)")
+        for prec in ev.get("precedents") or []:
+            cite = str(prec.get("cite", "")).strip()
+            if cite:
+                precedent_use.setdefault(cite, []).append(cid)
+
+    for cite, users in precedent_use.items():
+        if len(users) > MAX_PRECEDENT_REUSE:
+            warnings.append(
+                f"심결례 '{cite[:40]}'가 {len(users)}건 주장에 반복 인용됨(기준 {MAX_PRECEDENT_REUSE}건) "
+                "— 주장별 차별 검색 필요")
+    return warnings
+
 
 def verify_matter(
     matter: dict[str, Any], authorities: list[dict[str, Any]], output_dir: Path
@@ -73,6 +120,13 @@ def verify_matter(
             errors.append(f"MD 확인 실패 {path.name}: {exc}")
     if unresolved:
         warnings.append(f"최종 확정 전 해결할 [확인 필요] 표시 {unresolved}건")
+
+    warnings.extend(_evaluation_quality_warnings(assessment["claims"]))
+
+    # LLM 추출 모드: 인용 원문 앵커가 깨진 주장은 인용 금지 대상 → 오류로 승격
+    for claim in assessment["claims"]:
+        if (claim.get("anchor") or {}).get("status") == "not_found":
+            errors.append(f"{claim['claim_id']}: 인용 원문이 PDF에서 확인되지 않음(할루시네이션 게이트)")
 
     corroboration = assessment.get("corroboration")
     if corroboration:
