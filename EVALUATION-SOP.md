@@ -31,6 +31,9 @@ Claude 세션(로컬 Claude Code CLI)에서 다음을 수행한다.
 2. 각 주장에 대해 **직접 근거와 사례**를 확인한다.
    - 법령 원문: `mcp__korean-law__search_law` → `get_law_text` (표시광고법 제3조·제5조·제9조·제17조,
      환경기술산업법 제16조의10 등). 인용 전 **현행 시행 여부**를 반드시 확인한다(§2-2).
+   - **도구 전제**: `court-precedents`·`ftc-decisions`는 이 저장소에 포함되지 않은 **별도 구축 MCP**다.
+     연결돼 있으면 아래 경로가 가장 정확하고, 없으면 저장소의 `corpus search-decisions`로 대체하되
+     커버리지가 줄어든다. `korean-law` MCP는 판례 전문 확보에 반드시 필요하다.
    - **법원 판례 시맨틱 검색(court-precedents MCP, 2026-07-22 추가)**: 판례공보·판결공보 축적분을
      관련도 랭킹으로 **직접** 검색 — `mcp__court-precedents__search_precedents(query="환경성 표시광고 오인",
      area="행정")` → `get_precedent(사건번호)`(판시사항·판결요지·참조조문·참조판례·**이유 전문**).

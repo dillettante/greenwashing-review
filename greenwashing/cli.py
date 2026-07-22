@@ -259,6 +259,36 @@ def command_assess(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_benchmark(args: argparse.Namespace) -> int:
+    """여러 사건의 정밀평가 결과를 회사 축으로 비교한다(동종업계 SR 벤치마크)."""
+    from .benchmark import build_benchmark
+    from .benchmark_docs import create_benchmark_html, create_benchmark_md
+
+    dirs = [Path(p).expanduser().resolve() for p in args.matter_folders]
+    bm = build_benchmark(dirs, stance=args.stance)
+    out_dir = Path(args.out).expanduser().resolve() if args.out else PROJECT_ROOT / "benchmarks" / args.name
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    # 해석(세션 작성)이 있으면 병합 — 없으면 집계만 렌더한다(건별 evaluation.json과 같은 이음매)
+    analysis_path = out_dir / "2-benchmark-analysis.json"
+    analysis = json.loads(analysis_path.read_text(encoding="utf-8")) if analysis_path.exists() else {}
+
+    (out_dir / "1-benchmark-data.json").write_text(
+        json.dumps({k: v for k, v in bm.items() if k != "records"}, ensure_ascii=False, indent=2,
+                   default=lambda o: dict(o) if isinstance(o, dict) else str(o)),
+        encoding="utf-8")
+    create_benchmark_md(bm, analysis, out_dir / "3-benchmark.md")
+    create_benchmark_html(bm, analysis, out_dir / "3-benchmark.html")
+    print(json.dumps({
+        "status": "COMPLETED", "companies": bm["companies"], "stance": args.stance,
+        "sample_confidence": bm["sample_confidence"]["label"],
+        "shared_types": len(bm["cross_tab"]["shared"]), "unique_types": len(bm["cross_tab"]["unique"]),
+        "analysis_merged": bool(analysis), "output_dir": str(out_dir),
+        "next_step": None if analysis else f"세션이 {analysis_path.name}을 작성한 뒤 같은 명령을 재실행하십시오",
+    }, ensure_ascii=False, indent=2))
+    return 0
+
+
 def command_corroborate(args: argparse.Namespace) -> int:
     matter_dir = Path(args.matter_folder).expanduser().resolve()
     assessment_path = matter_dir / "output" / "1-assessment.json"
@@ -560,6 +590,14 @@ def build_parser() -> argparse.ArgumentParser:
     assess.add_argument("--max-company-pages", type=int, default=20)
     assess.add_argument("--max-news-results", type=int, default=5)
     assess.set_defaults(func=command_assess)
+
+    benchmark = sub.add_parser("benchmark", help="동종업계 SR 비교분석(정밀평가 완료된 사건 2건 이상)")
+    benchmark.add_argument("matter_folders", nargs="+", help="비교할 사건 폴더들")
+    benchmark.add_argument("--stance", choices=["neutral", "offense", "defense"], default="neutral",
+                           help="분석 관점. neutral=실태 파악(기본) / offense=신고·조사 / defense=자사 진단")
+    benchmark.add_argument("--name", default="benchmark", help="산출 폴더명(benchmarks/<name>)")
+    benchmark.add_argument("--out", help="산출 경로 직접 지정")
+    benchmark.set_defaults(func=command_benchmark)
 
     corroborate = sub.add_parser("corroborate", help="회사 홈페이지·언론보도로 환경주장 교차확인")
     corroborate.add_argument("matter_folder")

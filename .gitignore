@@ -20,3 +20,6 @@ examples/**/output/
 
 # 법인 브랜딩 자산(로고·CI) — 공개 저장소에 포함하지 않는다
 /brand/
+
+# 사건 비교분석 산출물(기밀 사건 파생)
+/benchmarks/

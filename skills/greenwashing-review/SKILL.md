@@ -81,6 +81,11 @@ korean-law MCP(판례·심결례)로 정면 검토해 `gateway.ad_applicability`
   국내 그린워싱은 판례를 직접 검색해도 잘 안 나온다. 대신 **공정위 의결서가 대법원 판례를 인용**하므로,
   의결서를 먼저 찾고 거기서 사건번호를 얻어 판례 전문을 검증하는 경로가 훨씬 정확하다.
 
+  > **도구 전제.** 아래 `ftc-decisions`·`court-precedents`는 이 저장소에 포함되지 않은 **별도 구축
+  > MCP 서버**다(공정위 의결서 전량·법원 판례공보 시맨틱 검색). 연결돼 있으면 이 경로가 가장 정확하다.
+  > 없는 환경에서는 저장소에 포함된 `corpus search-decisions`(로컬 아카이브)로 대체하되,
+  > **커버리지가 줄어든다**는 점을 감안한다. `korean-law` MCP는 3)단계에 반드시 필요하다.
+
   1) **의결서 검색(주경로)** — `mcp__ftc-decisions__search_ftc_decisions(query="<주장의 법적 쟁점>", top_k=5)`.
      사내망의 공정위 의결서 전량을 이유·주문 단위로 시맨틱 검색한다(로컬 아카이브보다 상위집합).
      사내망 밖이면 로컬 폴백: `python3 -m greenwashing corpus search-decisions "<주장>" -k 5 --jurisdiction KR`.
