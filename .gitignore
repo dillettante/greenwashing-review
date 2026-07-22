@@ -17,3 +17,6 @@ matters/
 # 사건별 산출물
 output/
 examples/**/output/
+
+# 법인 브랜딩 자산(로고·CI) — 공개 저장소에 포함하지 않는다
+/brand/
