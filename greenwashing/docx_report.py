@@ -9,7 +9,6 @@ from docx.oxml.ns import qn
 from docx.shared import Mm, Pt
 
 from .analysis import PATTERN_LABELS
-from .markdown_docs import ROUTE_LABELS
 
 BODY_FONT = "바탕"
 HEADING_FONT = "돋움"
@@ -229,11 +228,8 @@ def create_assessment_report_docx(result: dict[str, Any], authorities: dict[str,
             doc.add_paragraph("추가 확보 필요 자료:")
             _bullets(doc, c["missing_evidence"])
 
-    section += 1
-    doc.add_heading(f"{section}. 제출 경로 검토", level=1)
-    for route in result["route_recommendations"]:
-        doc.add_paragraph(f"{ROUTE_LABELS.get(route['route'], route['route'])}: {route['recommendation']} — {route['reason']}", style="List Bullet")
-
+    # 제출 경로 섹션은 두지 않는다(md와 동일) — 관문 쟁점의 '대안 경로 비교'와
+    # '정량 리스크·제재 전망'이 법적 근거와 함께 다루므로 중복이다.
     section += 1
     doc.add_heading(f"{section}. 최종 검증 게이트", level=1)
     _bullets(doc, [
@@ -241,6 +237,12 @@ def create_assessment_report_docx(result: dict[str, Any], authorities: dict[str,
         "판례·심결례의 원문·절차단계 및 확정 여부 확인",
         "각 주장과 증거의 페이지·파일 해시 대조",
         "회사 환경성과·지표의 실재 여부 웹·원자료 재검증",
+        "행위자·게시기간·도달범위·시정 여부 확인",
+        "표시·광고 해당성과 소비자 오인 가능성(경로 공통 선결)",
+        "환경기술 및 환경산업 지원법상 제품·행위자 범위",
+        "실증자료 요청·보전 필요성",
+        "행정조사와 형사절차의 순서 및 중복 위험",
+        "고발인·피고발인 인적사항, 관할, 시효",
         "변호사 최종 승인 후 제출문서 확정",
     ])
 
