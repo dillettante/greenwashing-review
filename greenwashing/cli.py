@@ -11,10 +11,9 @@ from .corpus import audit_corpus, import_verified_json, sync_corpus
 from .corroboration import corroborate_matter
 from .database import Database
 from .docx_report import create_assessment_report_docx
+from .html_report import create_assessment_report_html
 from .markdown_docs import (
     create_assessment_report_md,
-    create_claims_table_md,
-    create_evidence_table_md,
     create_filing_md,
     create_redline_md,
 )
@@ -227,18 +226,19 @@ def command_assess(args: argparse.Namespace) -> int:
             result_dict["route_recommendations"] = recommend_routes_final(result_dict["claims"])
         result_dict["corpus_health"] = health
         result_dict["purpose"] = _resolve_purpose(args, matter_dir)
-        _write_shortlist(result, result_dict, output_dir, evaluated)
-        assessment_path = output_dir / "1-assessment.json"
-        assessment_path.write_text(json.dumps(result_dict, ensure_ascii=False, indent=2), encoding="utf-8")
+        _write_worklist(result, result_dict, output_dir, evaluated)
         authorities = db.authorities()
         authority_map = {row["id"]: row for row in authorities}
+        # 문서 생성은 전체 dict(조문 전문 포함)로, 저장은 경량본으로 — 아래 순서 유지
         create_assessment_report_md(result_dict, authority_map, output_dir / "3-legal-review-report.md")
         create_assessment_report_docx(result_dict, authority_map, output_dir / "3-legal-review-report.docx")
-        create_claims_table_md(result_dict, output_dir / "3-claims-review.md")
-        create_evidence_table_md(result_dict, output_dir / "3-evidence-list.md")
+        create_assessment_report_html(result_dict, authority_map, output_dir / "3-legal-review-report.html")
         if result_dict["purpose"] in {"defense", "both"}:
             create_redline_md(result_dict, output_dir / "3-redline.md")
         create_workbooks(result_dict, authorities, output_dir)
+        db.save_matter(result.matter_id, str(matter_dir), args.mode, result.context, result_dict, result.created_at)
+        (output_dir / "1-assessment.json").write_text(
+            json.dumps(_slim_assessment(result_dict), ensure_ascii=False, indent=2), encoding="utf-8")
         db.save_matter(result.matter_id, str(matter_dir), args.mode, result.context, result_dict, result.created_at)
     finally:
         db.close()
@@ -313,6 +313,36 @@ def _attach_legal_citations(result: dict, db: Database) -> None:
             raise RuntimeError(f"{claim['claim_id']}: 로컬 조문 DB에서 직접 근거를 찾지 못했습니다")
 
 
+def _slim_assessment(result: dict) -> dict:
+    """저장용 경량본 — 같은 내용을 반복 저장하던 것을 참조 구조로 바꾼다.
+
+    구 2.2MB의 정체: ① 조문 전문(13개·31KB)이 주장 20건에 **각각 복사**돼 623KB,
+    ② PDF 120쪽 전문 텍스트 283KB(앵커 검증은 실행 중 원본 PDF로 하므로 보관 불요),
+    ③ 교차확인 원문 152KB(1-corroboration.json에 이미 있음).
+    """
+    slim = {k: v for k, v in result.items() if k != "corroboration"}
+    # ① 조문은 최상위에 1벌만 두고 주장은 키로 참조
+    citations: dict[str, dict] = {}
+    slim["claims"] = []
+    for claim in result["claims"]:
+        copy = dict(claim)
+        keys = []
+        for cit in claim.get("legal_citations", []):
+            key = f"{cit['authority_id']}#{cit['provision_no']}"
+            citations.setdefault(key, cit)
+            keys.append(key)
+        copy.pop("legal_citations", None)
+        copy["legal_citation_keys"] = keys
+        slim["claims"].append(copy)
+    slim["legal_citations"] = citations
+    # ② 원문 텍스트는 빼고 메타(해시·쪽·파일)만 — 무결성 검증에 필요한 것은 해시다
+    for field in ("input_documents", "evidence_documents"):
+        slim[field] = [{k: v for k, v in page.items() if k != "text"} for page in result.get(field, [])]
+    slim["_note"] = ("경량본: 조문 원문은 legal_citations에 1벌(주장은 legal_citation_keys로 참조), "
+                     "문서 원문 텍스트 제외(해시·쪽 유지), 교차확인 원문은 1-corroboration.json 참조")
+    return slim
+
+
 def _attach_evaluation(result: dict, output_dir: Path) -> int:
     """세션(Claude+korean-law MCP)이 작성한 evaluation.json을 주장별로 병합한다.
 
@@ -350,11 +380,11 @@ def _attach_evaluation(result: dict, output_dir: Path) -> int:
     return evaluated
 
 
-def _write_shortlist(result, result_dict: dict, output_dir: Path, evaluated: int) -> None:
-    """세션 정밀평가로 넘길 주장을 shortlist.json과 작업지시로 고정한다.
+def _write_worklist(result, result_dict: dict, output_dir: Path, evaluated: int) -> None:
+    """정밀평가 진행 상황을 사람이 보는 작업지시(1-worklist.md)로 고정한다.
 
-    LLM 모드(1-claims.json 존재): 세션이 이미 통독·선별했으므로 전량이 대상, 앵커 상태를 표시.
-    regex 폴백: 기계 트리아지 상위 20건.
+    구 1-shortlist.json은 폐지했다 — LLM 모드에서는 1-claims.json이 원본이고
+    앵커·평가 상태는 1-assessment.json에 있어 재포장이 중복이었다.
     """
     llm_mode = getattr(result, "claims_source", "regex") == "llm"
     dict_by_id = {c["claim_id"]: c for c in result_dict["claims"]}
@@ -363,34 +393,6 @@ def _write_shortlist(result, result_dict: dict, output_dir: Path, evaluated: int
     else:
         shortlist = select_shortlist(result.claims)
         rows = [dict_by_id[c.claim_id] for c in shortlist if c.claim_id in dict_by_id]
-    payload = {
-        "matter_id": result.matter_id,
-        "generated_at": result.created_at,
-        "claims_source": getattr(result, "claims_source", "regex"),
-        "note": "이 목록은 korean-law MCP 정밀평가 대상이다. EVALUATION-SOP.md 절차로 evaluation.json을 작성하라.",
-        "claims": [
-            {
-                "claim_id": c["claim_id"],
-                "page": c["page"],
-                "filename": c["filename"],
-                "quote": c["quote"],
-                "patterns": c["patterns"],
-                "subject_scope": c["subject_scope"],
-                "anchor": c.get("anchor"),
-                "why_flagged": c.get("why_flagged") or "",
-                "narrative_axis": c.get("narrative_axis") or "",
-                "applicability_mechanical": c["applicability"],
-                "risk_score_mechanical": c["risk_score"],
-                "legal_basis_ids_mechanical": c["legal_basis_ids"],
-                "missing_evidence": c["missing_evidence"],
-                "evaluated": bool(c.get("evaluation")),
-            }
-            for c in rows
-        ],
-    }
-    (output_dir / "1-shortlist.json").write_text(
-        json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
     anchor_mark = {"anchored": "🔗", "page_corrected": "🔁", "not_found": "⚠️미확인"}
     lines = [f"# 정밀평가 작업지시 — {result.matter_id}", ""]
     if llm_mode:

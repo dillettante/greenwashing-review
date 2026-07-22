@@ -37,7 +37,7 @@
 
 ```bash
 python3 -m greenwashing assess matters/<사건> --mode public --with-public-check   # ①
-#   → (세션) 1-shortlist.json을 korean-law MCP·웹으로 평가 → output/2-evaluation.json  # ②
+#   → (세션) 1-claims.json 작성 → 앵커 검증 → korean-law MCP·웹으로 평가 → output/2-evaluation.json  # ②
 python3 -m greenwashing assess matters/<사건> --mode public                       # ③ 병합
 python3 -m greenwashing verify   <matter_id>
 python3 -m greenwashing approve  <matter_id> --reviewer "홍길동" --scope all        # 변호사 승인
@@ -114,11 +114,11 @@ public_urls: []
 
 | 프리픽스 | 의미 | 파일 |
 |---|---|---|
-| `1-` | **전단계**(기계 트리아지) | `1-assessment.json`, `1-shortlist.json`, `1-worklist.md`, `1-corroboration.md/.json` |
+| `1-` | **전단계**(추출·앵커) | `1-claims.json`(세션 추출), `1-assessment.json`(경량본), `1-worklist.md`, `1-corroboration.md/.json` |
 | `2-` | **정밀평가**(세션 작성) | `2-evaluation.json` |
-| `3-` | **★ 최종 결과물** | `3-legal-review-report.md`(메인 보고서), `3-claims-review.xlsx`(117행 작업본)/`.md`(요약), `3-evidence-list.xlsx`/`.md` |
+| `3-` | **★ 최종 결과물** | **납품 3종**: `3-legal-review-report.md`(기본)·`.docx`(제출·편집)·`.html`(고객용). 작업본 `3-claims-review.xlsx`·`3-evidence-list.xlsx`, 방어 모드 `3-redline.md` |
 | `4-` | **★★ 제출문서**(승인 후) | `4-filing-kftc-draft.md`, `4-filing-environment-draft.md`, `4-filing-criminal-draft.md` |
-| `9-` | 검증 로그 | `9-verification-log.md/.json` |
+| `9-` | 검증 로그 | `9-verification-log.json` |
 | (없음) | 제어·메타 | `attorney-approval.json`, `test-summary.md` |
 
 - **`3-`이 붙으면 최종 심사 산출물, `4-`는 승인 후 제출문서.** `1-`·`2-`는 그 전단계다.
@@ -145,7 +145,7 @@ public_urls: []
   } } }
 ```
 
-`claim_id`는 `1-shortlist.json`과 일치해야 병합된다. 필드는 모두 선택적(채운 것만 렌더). **`risk_final`은 웹 검증 결과를 반영해 확정한다.**
+`claim_id`는 `1-claims.json`과 일치해야 병합된다. 필드는 모두 선택적(채운 것만 렌더). **`risk_final`은 웹 검증 결과를 반영해 확정한다.**
 
 ---
 

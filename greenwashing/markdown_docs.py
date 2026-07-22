@@ -335,49 +335,6 @@ def create_redline_md(result: dict[str, Any], output_path: Path) -> bool:
     return True
 
 
-# ---------------------------------------------------------------- 좁은 요약표
-
-def create_claims_table_md(result: dict[str, Any], output_path: Path) -> None:
-    o = ["# 주장별 검토표 (요약)", "",
-         "전체 컬럼·정렬·색상 작업본은 `주장별-검토표.xlsx`를 사용하십시오. 이 표는 스캔용 요약입니다.", "",
-         "| claim_id | 쪽 | 기계위험 | 최종광고성 | 최종위험 | 유형 | 한줄요약 |",
-         "|---|---|---|---|---|---|---|"]
-    ranked = sorted(result["claims"], key=lambda c: (-c["risk_score"], c["page"]))
-    for c in ranked:
-        ev = c.get("evaluation") or {}
-        o.append("| {id} | {pg} | {rb}({rs}) | {af} | {rf} | {ty} | {q} |".format(
-            id=c["claim_id"], pg=c["page"], rb=_cell(c["risk_band"]), rs=c["risk_score"],
-            af=_cell(ev.get("applicability_final", "-")), rf=_cell(ev.get("risk_final", "-")),
-            ty=_cell(", ".join(PATTERN_LABELS.get(p, p) for p in c["patterns"])),
-            q=_cell(_oneline(c["quote"], 50))))
-    _write(output_path, o)
-
-
-def create_evidence_table_md(result: dict[str, Any], output_path: Path) -> None:
-    claim_map: dict[str, list[str]] = {}
-    for c in result["claims"]:
-        claim_map.setdefault(f"{c['document_id']}:{c['page']}", []).append(c["claim_id"])
-    o = ["# 증거목록 (요약)", "",
-         "해시·발췌 전체는 `증거목록.xlsx`를 참조하십시오.", "",
-         "| 증거ID | 구분 | 파일 | 쪽 | 관련 Claim | 상태 |",
-         "|---|---|---|---|---|---|"]
-    seen: set[str] = set()
-    for page in [*result["input_documents"], *result["evidence_documents"]]:
-        key = f"{page['document_id']}:{page['page']}:{page['source_type']}"
-        if key in seen:
-            continue
-        seen.add(key)
-        st = page["source_type"]
-        eid = f"{'T' if st == 'target' else 'E'}-{page['document_id']}-{page['page']}"
-        gubun = "검토 대상" if st == "target" else ("공개 교차확인" if st == "public_evidence" else "실증·반증")
-        text = page.get("text") or ""
-        status = ("공개자료·별도검증" if st == "public_evidence" else "추출 완료") if text else "[확인 필요] OCR"
-        o.append("| {e} | {g} | {f} | {p} | {c} | {s} |".format(
-            e=eid, g=gubun, f=_cell(page["filename"]), p=page["page"],
-            c=_cell(", ".join(claim_map.get(f"{page['document_id']}:{page['page']}", []))), s=status))
-    _write(output_path, o)
-
-
 # ---------------------------------------------------------------- 제출문서 초안(md)
 
 def create_filing_md(result: dict[str, Any], route: str, output_path: Path) -> None:

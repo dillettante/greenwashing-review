@@ -10,10 +10,11 @@ from .approval import assessment_hash
 
 REQUIRED_ASSESSMENT_FILES = (
     "1-assessment.json",
+    # 납품 3종(같은 내용·형식만 다름) + 작업용 워크북. 구 3-claims-review.md·
+    # 3-evidence-list.md는 xlsx와 중복이라 폐지했다.
     "3-legal-review-report.md",
     "3-legal-review-report.docx",
-    "3-claims-review.md",
-    "3-evidence-list.md",
+    "3-legal-review-report.html",
     "3-claims-review.xlsx",
     "3-evidence-list.xlsx",
 )
@@ -149,25 +150,8 @@ def verify_matter(
     }
 
 
-def write_verification_log(result: dict[str, Any], output_dir: Path) -> tuple[Path, Path]:
+def write_verification_log(result: dict[str, Any], output_dir: Path) -> Path:
+    """검증 결과를 JSON으로 남긴다(구 .md 사본은 폐지 — verify가 콘솔에 같은 내용을 출력한다)."""
     json_path = output_dir / "9-verification-log.json"
-    md_path = output_dir / "9-verification-log.md"
     json_path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
-    lines = [
-        "# 검증 로그",
-        "",
-        f"- 상태: **{result['status']}**",
-        f"- 사건: `{result['matter_id']}`",
-        f"- 주장 수: {result['claim_count']}",
-        f"- 미해결 표시: {result['unresolved_count']}",
-        "",
-        "## 오류",
-        *(f"- {item}" for item in result["errors"]),
-        "",
-        "## 경고·확인 필요",
-        *(f"- {item}" for item in result["warnings"]),
-        "",
-        "> PASS는 기계적 무결성 통과를 뜻하며 법률적 최종 승인이나 제출 가능 상태를 뜻하지 않습니다.",
-    ]
-    md_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    return json_path, md_path
+    return json_path

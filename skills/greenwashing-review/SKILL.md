@@ -71,7 +71,7 @@ korean-law MCP(판례·심결례)로 정면 검토해 `gateway.ad_applicability`
 과징금·제17조 벌칙 등)를 최상위에 쓴다. 위험 높음 이상 주장에는 `redline`(수정 제안 문안)을 붙인다 —
 `3-redline.md` 발간 전 수정 권고안으로 렌더된다(방어 상품 산출물).
 
-**②-2. 주장별 포섭** — `1-shortlist.json`의 각 주장에 대해 korean-law MCP로 근거를 확인하고 포섭한다.
+**②-2. 주장별 포섭** — `1-claims.json`(및 `1-assessment.json`)의 각 주장에 대해 korean-law MCP로 근거를 확인하고 포섭한다.
 
 - 법령 원문·현행성: `mcp__korean-law__search_law` → `mcp__korean-law__get_law_text`
   - 표시광고법(mst 확인) 제3조(부당 표시광고 금지), 제5조(실증책임)
@@ -136,7 +136,7 @@ WebSearch/WebFetch(필요 시 `agent-reach` 스킬)로 확인한다. EVALUATION-
 쟁점만** 쓴다. 같은 심결례를 3건 이상 주장에 복붙 인용하지 않는다 — 주장별로 `corpus search-decisions`를
 실호출해 차별화된 후보를 찾고, 없으면 비워 둔다. `evaluated_by`는 세션 초안임을 명시, 최종 확정은 변호사.
 
-산출물은 모두 `.md`(보고서·고발장·요약표) + `.xlsx`(117행 검토표·증거목록 작업본)로 생성된다.
+**납품 3종**은 같은 내용을 형식만 달리해 생성된다: `3-legal-review-report.md`(기본)·`.docx`(제출·편집용)·`.html`(고객용 — 목차·위험도 필터·접기, 조문 원문은 부록으로 접힘). 작업본은 `.xlsx`(검토표·증거목록), 방어 모드면 `3-redline.md`.
 
 ### ③ 병합·문서·게이트
 ```bash
