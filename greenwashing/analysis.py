@@ -293,7 +293,7 @@ def recommend_routes(claims: list[ClaimFinding], context: dict[str, Any]) -> lis
     routes = [
         {
             "route": "kftc",
-            "recommendation": "검토" if actionable else "비권고",
+            "recommendation": "검토 필요" if actionable else "실익 낮음",
             "reason": f"표시·광고 해당 가능 주장 {len(actionable)}건. 표시광고법상 소비자 오인성과 실증 여부를 중심으로 검토.",
         },
         {
@@ -303,7 +303,7 @@ def recommend_routes(claims: list[ClaimFinding], context: dict[str, Any]) -> lis
         },
         {
             "route": "criminal",
-            "recommendation": "변호사 별도 승인 후 검토" if very_high else "현 단계 보류",
+            "recommendation": "신중 검토" if very_high else "현 단계 실익 낮음",
             "reason": f"매우 높은 위험 주장 {len(very_high)}건. 구성요건·고의·행위자·시효와 행정조사 선행 필요성을 별도 확인.",
         },
     ]
@@ -369,13 +369,13 @@ def recommend_routes_final(claim_dicts: list[dict[str, Any]]) -> list[dict[str, 
     high_or_above = [c for c in actionable if c["evaluation"].get("risk_final") in {"매우 높음", "높음"}]
     return [
         {"route": "kftc",
-         "recommendation": "검토" if actionable else "비권고",
+         "recommendation": "검토 필요" if actionable else "실익 낮음",
          "reason": f"정밀평가에서 광고 해당 가능(최종 있음·불확실) {len(actionable)}건, 그중 위험 높음 이상 {len(high_or_above)}건. "
                    "관문 쟁점(광고 해당성) 결론을 전제로 소비자 오인성·실증 여부 중심 검토."},
         {"route": "environment",
          "recommendation": "우선 검토" if product else "보충 검토",
          "reason": f"제품·포장·원료 환경성 주장 {len(product)}건(최종 기준). 환경기술 및 환경산업 지원법 적용대상 확인 필요."},
         {"route": "criminal",
-         "recommendation": "변호사 별도 승인 후 검토" if very_high else "현 단계 보류",
-         "reason": f"최종 위험 '매우 높음' {len(very_high)}건. 구성요건·고의·행위자·시효와 행정조사 선행 필요성을 별도 확인."},
+         "recommendation": "신중 검토" if very_high else "현 단계 실익 낮음",
+         "reason": f"위험도 '매우 높음' {len(very_high)}건. 고의 입증·행위자 특정이 선행되어야 하며, 실무상 행정조사가 먼저 진행되는 것이 통례입니다."},
     ]

@@ -158,9 +158,16 @@ def split_provisions(text: str) -> list[dict[str, str]]:
     matches = roman_matches if len(roman_matches) >= 2 else article_matches
     if not matches:
         return [{"provision_no": "전문", "heading": "전문", "text": text, "text_sha256": hashlib.sha256(text.encode()).hexdigest()}]
+    # 장(章)·절(節) 제목은 다음 조문의 머리이지 앞 조문의 일부가 아니다. 경계로 잡지 않으면
+    # 각 장의 마지막 조문에 "제2장 부당한 표시·광고 행위의 금지 등" 같은 표제가 붙어 인용된다.
+    section_heads = [m.start() for m in
+                     re.finditer(r"(?m)^\s*제\d+(?:장|절)(?:\s|$)", text)]
     result: list[dict[str, str]] = []
     for index, match in enumerate(matches):
         end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+        cut = [s for s in section_heads if match.start() < s < end]
+        if cut:
+            end = min(cut)
         body = text[match.start():end].strip()
         result.append({
             "provision_no": match.group(1),

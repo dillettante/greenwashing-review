@@ -21,7 +21,6 @@ from pathlib import Path
 from typing import Any
 
 from .analysis import PATTERN_LABELS
-from .markdown_docs import ROUTE_LABELS
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 RISK_ORDER = ["매우 높음", "높음", "중간", "낮음"]
@@ -457,12 +456,10 @@ def create_assessment_report_html(result: dict[str, Any], authorities: dict[str,
             o.append('<p class="meta">이 문안은 아직 정밀 검토가 완료되지 않았습니다.</p>')
         o.append("</div></details>")
 
-    # ── 대응 경로
-    sec += 1
-    h2(f"{sec}. 대응 경로 검토", "routes")
-    o.append("<table><tr><th>경로</th><th>권고</th><th>이유</th></tr>" + "".join(
-        f"<tr><td>{_e(ROUTE_LABELS.get(r['route'], r['route']))}</td><td>{_e(r['recommendation'])}</td>"
-        f"<td>{_e(r['reason'])}</td></tr>" for r in result["route_recommendations"]) + "</table>")
+    # ── 대응 경로 섹션은 두지 않는다.
+    # 관계 기관별 검토는 §선결 쟁점의 '대안 경로 비교'(요건·제재·실익)와 §제재 전망(경로별 노출·
+    # 벤치마크)이 이미 법적 근거와 함께 다룬다. 여기에 건수 기반 권고 라벨을 한 번 더 넣으면
+    # 같은 내용이 세 번 반복되고, 그 라벨은 법적 분석을 더하지 않는다.
 
     # ── 확인 사항
     sec += 1
@@ -507,14 +504,14 @@ def create_assessment_report_html(result: dict[str, Any], authorities: dict[str,
     doc = f"""<!doctype html>
 <html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>그린워싱 법률검토보고서 — {html.escape(str(ctx.get('company', result['matter_id'])))}</title>
+<title>Greenwashing Review — {html.escape(str(ctx.get('company', result['matter_id'])))}</title>
 <style>{css}</style></head><body>
 <div class="wrap">
 <nav>{f'<div class="brandmark">{logo}</div>' if logo else ''}{''.join(nav)}</nav>
 <main>
 <header class="doc">
 {f'<div class="eyebrow">{html.escape(firm)}</div>' if firm else ''}
-<h1>그린워싱 법률검토보고서</h1>
+<h1>Greenwashing Review</h1>
 <div class="meta">{html.escape(str(ctx.get('company', '')))} · 작성일 {html.escape(str(result['created_at'])[:10])}</div>
 </header>
 <div class="notice">본 보고서는 검토 대상 문안의 표시·광고 관련 법적 위험을 정리한 것으로, 담당 변호사의 최종 검토를 거쳐 확정됩니다.

@@ -1,36 +1,36 @@
 {
-  "retrieved_at": "2026-07-05T10:51:56+09:00",
+  "retrieved_at": "2026-07-22T10:01:11+09:00",
   "jurisdiction": "KR",
   "sources": [
     {
       "id": "KR-FAIR-LABELING-ACT",
       "version_id": "KR-FAIR-LABELING-ACT@2025-01-21",
       "provisions": 24,
-      "sha256": "2b06b05a563c861675782a117d08f7eef912d5fbae71274d38828902ba6b8974"
+      "sha256": "200815ad016aafc3a2ec0488fbe8e74d00078165a118f8142aa4386a02e58feb"
     },
     {
       "id": "KR-FAIR-LABELING-DECREE",
       "version_id": "KR-FAIR-LABELING-DECREE@2026-07-01",
       "provisions": 20,
-      "sha256": "bca1f2960d4f835eafc87c464016259fb7f4c7edd22d15da2aaeda4d3c44342c"
+      "sha256": "94cf4e0693ca6d26c713925a89646ea37da95422847de5c48a262928597308db"
     },
     {
       "id": "KR-ENV-TECH-ACT",
       "version_id": "KR-ENV-TECH-ACT@2026-06-09",
       "provisions": 70,
-      "sha256": "62de0ddb8e6dcbab6b8dfcd7c35eab59f6369ad49474c36da47c6e5f01c14e1d"
+      "sha256": "533bfeb7b0ca3876d125c39be8c1fb128a79e277510306462fe2c48d4b06171a"
     },
     {
       "id": "KR-ENV-TECH-DECREE",
       "version_id": "KR-ENV-TECH-DECREE@2026-03-19",
       "provisions": 74,
-      "sha256": "ba5b0551edbbd6d8e6497a0a3f16187e3245e8166b4938e68e6243baf3b7f79b"
+      "sha256": "e5a7e46429e0cd10e4fb0804f2c0e90096e71ef7c56dcf704ad3106d3f59505d"
     },
     {
       "id": "KR-ME-ENV-CLAIMS-NOTICE-2025",
       "version_id": "KR-ME-ENV-CLAIMS-NOTICE-2025@2025-10-07",
       "provisions": 46,
-      "sha256": "0f1a244bb0692224356644644c2cf22f900f410c278ec4a71df1209cfa5129e5"
+      "sha256": "95b43631bb39031de49ef090d470b3565ab0be7002f6ab696e551f6df43e55d5"
     },
     {
       "id": "KR-KFTC-ENV-AD-GUIDELINE-2023",
