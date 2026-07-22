@@ -171,6 +171,10 @@ corpus search-decisions "<주장>" [-k 5] [--action 고발] [--since YYYY-MM-DD]
                                    주장으로 관련 의결서·재결 시맨틱 검색(300+ 통독 없이 상위 K건). 스킬 ②가 주장별로 호출
 assess <matter> --mode public|confidential [--with-public-check]   ①추출·③병합
 corroborate <matter>               홈페이지·언론 교차확인
+benchmark <matter1> <matter2> [...] [--stance neutral|offense|defense] [--name 폴더명] [--out 경로]
+                                   정밀평가 끝난 사건 2건 이상을 횡단 비교(동종업계 SR 벤치마크).
+                                   집계 → 세션이 2-benchmark-analysis.json 작성 → 같은 명령 재실행으로 병합.
+                                   산출은 benchmarks/<name>/(gitignore). 같은 회사 다년도면 연도별 추이 비교
 approve <matter_id> --reviewer ... --scope all|kftc|environment|criminal
 draft   <matter_id> --route all|kftc|environment|criminal          승인 후 초안
 verify  <matter_id>                무결성 검증(exit 2 = 검토 필요)
@@ -191,14 +195,23 @@ verify  <matter_id>                무결성 검증(exit 2 = 검토 필요)
 
 ---
 
-## 8. 스킬 — `/greenwashing-review`
+## 8. 스킬 — `/greenwashing-review` · `/greenwashing-benchmark`
 
-**배포용 스킬 파일은 단 하나: `skills/greenwashing-review/SKILL.md`.**
+**배포용 스킬은 둘. 건별 검토와 횡단 비교로 나뉜다.**
 
-- 설치: `~/.claude/skills/greenwashing-review` → 이 repo의 `skills/greenwashing-review`를 가리키는 **심링크**.
+- 설치: `~/.claude/skills/<이름>` → 이 repo의 `skills/<이름>`을 가리키는 **심링크**.
   - `ln -s "$(pwd)/skills/greenwashing-review" ~/.claude/skills/greenwashing-review`
-- 스킬은 자체 완결이 아니라 프로젝트에 의존한다: (a) Python CLI(`python3 -m greenwashing`), (b) 절차 문서 [EVALUATION-SOP.md](EVALUATION-SOP.md). SKILL.md는 ②단계(포섭·심결례·웹검증)를 어떻게 수행하는지 규정한다.
-- 트리거: "그린워싱 검토", "지속가능보고서 평가", "환경 표시·광고 검토", 환경성 주장 고발장 요청 등.
+  - `ln -s "$(pwd)/skills/greenwashing-benchmark" ~/.claude/skills/greenwashing-benchmark`
+- 스킬은 자체 완결이 아니라 프로젝트에 의존한다: (a) Python CLI(`python3 -m greenwashing`), (b) 절차 문서 [EVALUATION-SOP.md](EVALUATION-SOP.md).
+
+| 스킬 | 묻는 것 | 입력 | SKILL.md가 규정하는 단계 |
+|---|---|---|---|
+| `/greenwashing-review` | 이 문안이 위법인가 | 보고서·광고 PDF | ②단계(포섭·심결례·웹검증) |
+| `/greenwashing-benchmark` | 무엇이 업계 관행이고 무엇이 이탈인가 | `2-evaluation.json` × 2건 이상 | ②단계(집계 수치의 해석) |
+
+- 트리거: 검토 — "그린워싱 검토", "지속가능보고서 평가", "환경 표시·광고 검토", 환경성 주장 고발장 요청 등.
+  비교 — "동종업계 비교", "SR 비교분석", "업계 관행인지 봐줘", "연도별로 어떻게 달라졌는지" 등.
+- 두 스킬 모두 **집계·검증은 기계가, 판단은 세션이** 한다는 같은 이음매를 쓴다.
 
 ---
 
@@ -277,6 +290,8 @@ Greenwashing/
 │  ├─ database.py         (267) SQLite: 규범·조문·버전·해시·사건
 │  ├─ korean_corpus.py    (228) 국가법령정보센터 원문 수집·조문 파싱
 │  ├─ maintenance.py      (221) 주간/월간/제출전 변경 감시·판례 후보 큐
+│  ├─ benchmark_docs.py   (234) 횡단 비교분석 .md·.html 렌더
+│  ├─ benchmark.py        (196) 동종업계 SR 횡단 집계(유형×보고서 교차표·표본 강도)
 │  ├─ workbooks.py        (191) ③검토표·증거목록 .xlsx(openpyxl)
 │  ├─ extractors.py       (139) PDF/DOCX/PPTX/HTML/이미지 OCR 추출
 │  ├─ verification.py     (118) 산출물·인용·승인 무결성(verify)
@@ -287,9 +302,11 @@ Greenwashing/
 ├─ corpus/{raw,verified}/ 법령 원문 스냅숏·파싱 JSON
 ├─ .gw/state.sqlite3      런타임 DB
 ├─ matters/<사건>/        사건 작업공간
-├─ skills/greenwashing-review/SKILL.md   배포용 스킬
+├─ benchmarks/<이름>/     횡단 비교 산출물(gitignore)
+├─ skills/greenwashing-review/SKILL.md      배포용 스킬 — 건별 검토
+├─ skills/greenwashing-benchmark/SKILL.md   배포용 스킬 — 횡단 비교
 ├─ scripts/ · ops/        유지보수 스크립트·launchd
-└─ tests/                 회귀 테스트(11건)
+└─ tests/                 회귀 테스트(33건)
 ```
 
 ---
@@ -308,6 +325,8 @@ Greenwashing/
 | 법령 수집·조문 파싱 | `korean_corpus.py`, `data/kr_official_sources.json` |
 | 무결성 검증 규칙 | `verification.py` |
 | 공개자료 교차확인 | `corroboration.py` |
+| 횡단 비교 집계·표본 강도 기준 | `benchmark.py`(`sample_confidence`·`cross_tabulate`) |
+| 비교분석 보고서 서식 | `benchmark_docs.py` + `skills/greenwashing-benchmark/SKILL.md` |
 
 ---
 

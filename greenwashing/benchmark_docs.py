@@ -51,45 +51,61 @@ def _sections(bm: dict, analysis: dict) -> list[tuple[str, str, list]]:
 
 def create_benchmark_md(bm: dict, analysis: dict, output_path: Path) -> None:
     conf, cross = bm["sample_confidence"], bm["cross_tab"]
+    labels, companies = bm["labels"], bm["companies"]
+    multi_year = len(labels) != len(companies)
+    scope = f"{len(companies)}개사" + (f" · 보고서 {len(labels)}건" if multi_year else "")
+
     o = ["# 지속가능경영보고서 비교분석", "",
-         f"- 대상: {', '.join(bm['companies'])} ({len(bm['companies'])}개사)",
-         f"- 관점: {bm['stance_label']}",
-         f"- 작성일: {analysis.get('created_at', '')}", "",
-         f"> **표본 한계** — {conf['caveat']}", "",
-         f"> {STANCE_INTRO[bm['stance']]}", ""]
+         f"- 대상: {', '.join(companies)} ({scope})",
+         f"- 관점: {bm['stance_label']}"]
+    if analysis.get("created_at"):
+        o.append(f"- 작성일: {analysis['created_at']}")
+    o += ["", f"> **표본 한계** — {conf['caveat']}", "",
+          f"> {STANCE_INTRO[bm['stance']]}", ""]
+
+    # 절 번호는 세어서 붙인다 — '개별 이탈'은 없으면 통째로 빠지므로 하드코딩하면 번호가 튄다
+    n = 0
+
+    def head(title: str) -> str:
+        nonlocal n
+        n += 1
+        return f"## {n}. {title}"
 
     if analysis.get("headline"):
         o += ["## 비교 요약", "", f"**{analysis['headline']}**", ""]
         o += [f"{i}. {f}" for i, f in enumerate(analysis.get("findings", []), 1)]
         o.append("")
 
-    o += ["## 1. 비교 대상 및 방법", "",
+    o += [head("비교 대상 및 방법"), "",
           "각 사의 지속가능경영보고서를 동일한 기준(표시광고법·환경기술산업법·환경광고 심사지침)으로 "
-          "개별 검토한 결과를 회사 축으로 재집계하였습니다. 문안 수가 회사마다 달라 절대 건수보다 "
-          "**비중과 유형 구성**을 함께 보아야 합니다.", "",
-          "| 회사 | 매체 | 게시 | 검토 문안 |", "|---|---|---|---|"]
+          "개별 검토한 결과를 보고서 축으로 재집계하였습니다. 문안 수가 보고서마다 달라 절대 건수보다 "
+          "**비중과 유형 구성**을 함께 보아야 합니다.", ""]
+    if multi_year:
+        o += ["> 같은 회사의 보고서가 둘 이상이어서 표에는 **게시연도**를 붙여 구분하였습니다. "
+              "표본 강도는 보고서 수가 아니라 **회사 수**를 기준으로 판단합니다.", ""]
+    o += ["| 보고서 | 매체 | 게시 | 검토 문안 |", "|---|---|---|---|"]
     for r in bm["records"]:
-        o.append(f"| {_cell(r['company'])} | {_cell(r['medium'])} | {_cell(r['published'])} | {len(r['claims'])}건 |")
+        o.append(f"| {_cell(r['label'])} | {_cell(r['medium'])} | {_cell(r['published'])} | {len(r['claims'])}건 |")
 
-    o += ["", "## 2. 회사별 위험 포지셔닝", "",
-          "| 회사 | 문안 | " + " | ".join(RISK_ORDER) + " | 높음 이상 비중 | 수정 권고 |",
+    o += ["", head("보고서별 위험 포지셔닝"), "",
+          "| 보고서 | 문안 | " + " | ".join(RISK_ORDER) + " | 높음 이상 비중 | 수정 권고 |",
           "|---|---|" + "---|" * (len(RISK_ORDER) + 2)]
     for p in bm["positioning"]:
         dist = " | ".join(str(p["dist"][k]) for k in RISK_ORDER)
-        o.append(f"| {_cell(p['company'])} | {p['claims']} | {dist} | {p['high_ratio']}% | {p['redlines']}건 |")
+        o.append(f"| {_cell(p['label'])} | {p['claims']} | {dist} | {p['high_ratio']}% | {p['redlines']}건 |")
 
-    o += ["", "## 3. 공통 패턴", "",
+    o += ["", head("공통 패턴"), "",
           f"복수 회사에서 반복 관찰된 문안 유형입니다. **{conf['label']}** 수준으로 읽어야 합니다.", "",
-          "| 문안 유형 | 출현 회사 | " + " | ".join(bm["companies"]) + " |",
-          "|---|---|" + "---|" * len(bm["companies"])]
+          "| 문안 유형 | 출현 회사 | " + " | ".join(labels) + " |",
+          "|---|---|" + "---|" * len(labels)]
     for r in cross["shared"]:
-        per = " | ".join(str(r["per_company"].get(c, 0)) for c in bm["companies"])
+        per = " | ".join(str(r["per_report"].get(c, 0)) for c in labels)
         o.append(f"| {_cell(r['type'])} | {r['company_count']}개사 | {per} |")
     for note in analysis.get("shared_notes", []):
         o += ["", f"**{note.get('type','')}** — {note.get('interpretation','')}"]
 
     if cross["unique"]:
-        o += ["", "## 4. 개별 이탈", "",
+        o += ["", head("개별 이탈"), "",
               "한 회사에서만 관찰된 유형입니다. 업계 공통 사정으로 설명하기 어려운 부분입니다.", "",
               "| 문안 유형 | 회사 | 건수 |", "|---|---|---|"]
         for r in cross["unique"]:
@@ -97,14 +113,14 @@ def create_benchmark_md(bm: dict, analysis: dict, output_path: Path) -> None:
         for note in analysis.get("unique_notes", []):
             o += ["", f"**{note.get('company','')} — {note.get('type','')}**: {note.get('interpretation','')}"]
 
-    o += ["", "## 5. 회사별 위험 축", ""]
+    o += ["", head("보고서별 위험 축"), ""]
     for p in bm["positioning"]:
-        o += [f"### {p['company']}", ""]
+        o += [f"### {p['label']}", ""]
         o += [f"- {a}" for a in p["axes"]] or ["- (축 미설정)"]
         o.append("")
 
     if analysis.get("implications"):
-        o += ["## 6. 규제·대응 시사점", ""]
+        o += [head("규제·대응 시사점"), ""]
         for item in analysis["implications"]:
             o += [f"### {item.get('title','')}", "", item.get("body", ""), ""]
 
@@ -118,50 +134,60 @@ def create_benchmark_md(bm: dict, analysis: dict, output_path: Path) -> None:
 def create_benchmark_html(bm: dict, analysis: dict, output_path: Path) -> None:
     brand = _load_brand()
     conf, cross = bm["sample_confidence"], bm["cross_tab"]
-    companies = bm["companies"]
+    labels, companies = bm["labels"], bm["companies"]
+    multi_year = len(labels) != len(companies)
     nav, o = [], []
+    sec = 0
 
-    def h2(title: str, anchor: str) -> None:
+    def h2(title: str, anchor: str, num: bool = True) -> None:
+        """번호는 세어서 붙인다 — 빠질 수 있는 절이 있어 하드코딩하면 번호가 튄다."""
+        nonlocal sec
+        if num:
+            sec += 1
+            title = f"{sec}. {title}"
         nav.append(f'<a href="#{anchor}">{_e(title)}</a>')
         o.append(f'<h2 id="{anchor}">{_e(title)}</h2>')
 
     if analysis.get("headline"):
-        h2("비교 요약", "summary")
+        h2("비교 요약", "summary", num=False)
         o.append('<div class="summary">')
         o.append(f'<div class="headline">{_e(analysis["headline"])}</div>')
         if analysis.get("findings"):
             o.append("<ol>" + "".join(f"<li>{_e(f)}</li>" for f in analysis["findings"]) + "</ol>")
         o.append("</div>")
 
-    h2("1. 비교 대상 및 방법", "scope")
+    h2("비교 대상 및 방법", "scope")
     o.append("<p>각 사의 지속가능경영보고서를 동일한 기준(표시광고법·환경기술산업법·환경광고 심사지침)으로 "
-             "개별 검토한 결과를 회사 축으로 재집계하였습니다. 문안 수가 회사마다 달라 절대 건수보다 "
+             "개별 검토한 결과를 보고서 축으로 재집계하였습니다. 문안 수가 보고서마다 달라 절대 건수보다 "
              "비중과 유형 구성을 함께 보아야 합니다.</p>")
-    o.append("<table><tr><th>회사</th><th>매체</th><th>게시</th><th>검토 문안</th></tr>" + "".join(
-        f"<tr><td>{_e(r['company'])}</td><td>{_e(r['medium'])}</td><td>{_e(r['published'])}</td>"
+    if multi_year:
+        o.append('<div class="notice">같은 회사의 보고서가 둘 이상이어서 표에는 <b>게시연도</b>를 붙여 '
+                 "구분하였습니다. 표본 강도는 보고서 수가 아니라 <b>회사 수</b>를 기준으로 판단합니다.</div>")
+    o.append("<table><tr><th>보고서</th><th>매체</th><th>게시</th><th>검토 문안</th></tr>" + "".join(
+        f"<tr><td>{_e(r['label'])}</td><td>{_e(r['medium'])}</td><td>{_e(r['published'])}</td>"
         f"<td>{len(r['claims'])}건</td></tr>" for r in bm["records"]) + "</table>")
 
-    h2("2. 회사별 위험 포지셔닝", "positioning")
-    o.append("<table><tr><th>회사</th><th>문안</th>" + "".join(f"<th>{r}</th>" for r in RISK_ORDER)
+    h2("보고서별 위험 포지셔닝", "positioning")
+    o.append("<table><tr><th>보고서</th><th>문안</th>" + "".join(f"<th>{r}</th>" for r in RISK_ORDER)
              + "<th>높음 이상</th><th>수정 권고</th></tr>" + "".join(
-        f"<tr><td>{_e(p['company'])}</td><td>{p['claims']}</td>"
+        f"<tr><td>{_e(p['label'])}</td><td>{p['claims']}</td>"
         + "".join(f"<td>{p['dist'][k]}</td>" for k in RISK_ORDER)
         + f"<td><b>{p['high_ratio']}%</b></td><td>{p['redlines']}건</td></tr>"
         for p in bm["positioning"]) + "</table>")
 
-    h2("3. 공통 패턴", "shared")
+    h2("공통 패턴", "shared")
     o.append(f'<p>복수 회사에서 반복 관찰된 문안 유형입니다. <b>{_e(conf["label"])}</b> 수준으로 읽어야 합니다.</p>')
     o.append("<table><tr><th>문안 유형</th><th>출현 회사</th>"
-             + "".join(f"<th>{_e(c)}</th>" for c in companies) + "</tr>" + "".join(
+             + "".join(f"<th>{_e(c)}</th>" for c in labels) + "</tr>" + "".join(
         f"<tr><td>{_e(r['type'])}</td><td>{r['company_count']}개사</td>"
-        + "".join(f"<td>{r['per_company'].get(c, 0)}</td>" for c in companies) + "</tr>"
+        + "".join(f"<td>{r['per_report'].get(c, 0)}</td>" for c in labels) + "</tr>"
         for r in cross["shared"]) + "</table>")
     for note in analysis.get("shared_notes", []):
         o.append(f'<div class="axis"><h3>{_e(note.get("type",""))}</h3>'
                  f'<p>{_e(note.get("interpretation",""))}</p></div>')
 
     if cross["unique"]:
-        h2("4. 개별 이탈", "unique")
+        h2("개별 이탈", "unique")
         o.append("<p>한 회사에서만 관찰된 유형입니다. 업계 공통 사정으로 설명하기 어려운 부분입니다.</p>")
         o.append("<table><tr><th>문안 유형</th><th>회사</th><th>건수</th></tr>" + "".join(
             f"<tr><td>{_e(r['type'])}</td><td>{_e(r['companies'][0])}</td><td>{r['total_claims']}</td></tr>"
@@ -170,13 +196,13 @@ def create_benchmark_html(bm: dict, analysis: dict, output_path: Path) -> None:
             o.append(f'<div class="axis"><h3>{_e(note.get("company",""))} — {_e(note.get("type",""))}</h3>'
                      f'<p>{_e(note.get("interpretation",""))}</p></div>')
 
-    h2("5. 회사별 위험 축", "axes")
+    h2("보고서별 위험 축", "axes")
     for p in bm["positioning"]:
-        o.append(f'<div class="axis"><h3>{_e(p["company"])}</h3><ul class="tight">'
+        o.append(f'<div class="axis"><h3>{_e(p["label"])}</h3><ul class="tight">'
                  + "".join(f"<li>{_e(a)}</li>" for a in p["axes"]) + "</ul></div>")
 
     if analysis.get("implications"):
-        h2("6. 규제·대응 시사점", "implications")
+        h2("규제·대응 시사점", "implications")
         for item in analysis["implications"]:
             o.append(f'<div class="axis"><h3>{_e(item.get("title",""))}</h3>'
                      f'<p>{_e(item.get("body",""))}</p></div>')
@@ -195,7 +221,7 @@ def create_benchmark_html(bm: dict, analysis: dict, output_path: Path) -> None:
 <header class="doc">
 {f'<div class="eyebrow">{html.escape(firm)}</div>' if firm else ''}
 <h1>SR Benchmark</h1>
-<div class="meta">지속가능경영보고서 비교분석 · {html.escape(', '.join(companies))} · {len(companies)}개사</div>
+<div class="meta">지속가능경영보고서 비교분석 · {html.escape(', '.join(companies))} · {len(companies)}개사{f' · 보고서 {len(labels)}건' if multi_year else ''}</div>
 </header>
 <div class="notice"><b>표본 한계</b> — {_e(conf['caveat'])}<br>{_e(STANCE_INTRO[bm['stance']])}</div>
 {''.join(o)}

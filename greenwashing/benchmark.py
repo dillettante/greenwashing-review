@@ -10,11 +10,16 @@
 
 **과잉 일반화 방지**: 2개사 비교로 "업계 관행"을 단정하면 표본이 부족하다.
 `sample_confidence()`가 회사 수에 따라 표현 강도를 제한한다(2사=관찰, 3사 이상=관행 후보).
+
+**축이 둘이다 — 보고서와 회사.** 같은 회사의 다른 연도 보고서를 함께 넣는 연도별 추이 비교를
+지원하므로, 표는 보고서 단위로 벌리되(열이 따로 서야 추이가 보인다) 표본 강도와 공통/개별
+분류는 **회사 단위**로 센다. 한 회사의 2개 연도를 '2개사'로 세면 위 가드가 그대로 뚫린다.
 """
 from __future__ import annotations
 
 import collections
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -33,17 +38,52 @@ def _norm_type(raw: str) -> str:
     return PATTERN_LABELS.get(raw, raw)
 
 
-def sample_confidence(n_companies: int) -> dict[str, str]:
-    """표본 크기에 따라 허용되는 주장 강도를 정한다(§과잉 일반화 방지)."""
+def sample_confidence(n_companies: int, n_reports: int | None = None) -> dict[str, str]:
+    """표본 크기에 따라 허용되는 주장 강도를 정한다(§과잉 일반화 방지).
+
+    **기준은 보고서 수가 아니라 회사 수다.** 같은 회사의 보고서를 여러 해 넣어도 업계 표본이
+    늘어난 것이 아니기 때문이다 — 보고서로 세면 1개사 3개년이 '업계 관행 후보'가 되어버린다.
+    """
+    n_reports = n_reports if n_reports is not None else n_companies
+    span = f"{n_companies}개사" + (f"(보고서 {n_reports}건)" if n_reports != n_companies else "")
+    if n_companies <= 1:
+        return {"level": "single", "label": "동일 회사 연도별 추이",
+                "caveat": (f"한 회사의 보고서 {n_reports}건을 비교한 것입니다. **업계 비교가 아니며**, "
+                           "같은 회사 안에서의 시점 간 변화만을 의미합니다.")}
     if n_companies >= 5:
         return {"level": "strong", "label": "업계 관행",
-                "caveat": f"{n_companies}개사 표본. 업종 대표성은 표본 선정 기준에 따라 달라집니다."}
+                "caveat": f"{span} 표본. 업종 대표성은 표본 선정 기준에 따라 달라집니다."}
     if n_companies >= 3:
         return {"level": "moderate", "label": "업계 관행 후보",
-                "caveat": f"{n_companies}개사 표본으로 경향은 보이나, 업계 전체로 일반화하려면 표본 확대가 필요합니다."}
+                "caveat": f"{span} 표본으로 경향은 보이나, 업계 전체로 일반화하려면 표본 확대가 필요합니다."}
     return {"level": "weak", "label": "공통 패턴 관찰",
-            "caveat": (f"{n_companies}개사 비교입니다. **'업계 관행'으로 단정할 표본이 아니며**, "
-                       "두 회사에서 같은 패턴이 관찰되었다는 사실만을 의미합니다.")}
+            "caveat": (f"{span} 비교입니다. **'업계 관행'으로 단정할 표본이 아니며**, "
+                       f"{n_companies}개사에서 같은 패턴이 관찰되었다는 사실만을 의미합니다.")}
+
+
+def _report_year(published: Any) -> str:
+    """게시연도만 뽑는다. published_date가 '2026-06-01'일 수도 2024(정수)일 수도 있다."""
+    m = re.search(r"(\d{4})", str(published or ""))
+    return m.group(1) if m else ""
+
+
+def assign_labels(records: list[dict]) -> None:
+    """보고서 표시명을 정한다 — 같은 회사가 둘 이상일 때만 게시연도를 붙인다.
+
+    회사가 한 번만 나오면 회사명 그대로 쓴다(단일 연도 비교의 표를 어지럽히지 않기 위해서다).
+    연도까지 겹치면 사건 폴더명으로 떨어뜨린다 — 무슨 수를 써서라도 열은 구분되어야 한다.
+    """
+    dupes = {c for c, n in collections.Counter(r["company"] for r in records).items() if n > 1}
+    used: set[str] = set()
+    for r in records:
+        label = r["company"]
+        if r["company"] in dupes:
+            year = _report_year(r["published"])
+            label = f"{r['company']} ({year})" if year else r["company"]
+            if label in used:
+                label = f"{r['company']} ({r['matter_id']})"
+        used.add(label)
+        r["label"] = label
 
 
 def load_matter(matter_dir: Path) -> dict[str, Any] | None:
@@ -88,48 +128,53 @@ def load_matter(matter_dir: Path) -> dict[str, Any] | None:
 
 
 def cross_tabulate(records: list[dict]) -> dict[str, Any]:
-    """유형 × 회사 교차표와 공통/개별 분류.
+    """유형 × 보고서 교차표와 공통/개별 분류.
 
     '공통'의 기준은 **과반이 아니라 복수 회사 출현**이다 — 2개사 비교에서 과반(2/2)을 요구하면
     사실상 전원 일치만 잡히고, 3개사 이상에서는 과반이 지나치게 느슨해진다. 출현 회사 수를
     그대로 노출해 세션이 판단하게 한다.
+
+    **표는 보고서별로 벌리되 공통/개별은 회사로 센다.** 한 회사의 2개 연도에서 같은 유형이
+    나온 것을 '복수 회사 공통'이라 부르면 없는 업계 관행을 만들어내게 된다.
     """
-    n = len(records)
     all_types = sorted({t for r in records for t in r["types"]})
-    matrix: dict[str, dict[str, int]] = {}
-    for t in all_types:
-        matrix[t] = {r["company"]: r["types"].get(t, 0) for r in records}
+    matrix = {t: {r["label"]: r["types"].get(t, 0) for r in records} for t in all_types}
 
     shared, unique = [], []
     for t in all_types:
-        present = [c for c, v in matrix[t].items() if v > 0]
-        row = {"type": t, "companies": present, "company_count": len(present),
-               "total_claims": sum(matrix[t].values()), "per_company": matrix[t]}
-        (shared if len(present) >= 2 else unique).append(row)
+        hit = [r for r in records if r["types"].get(t, 0) > 0]
+        firms = list(dict.fromkeys(r["company"] for r in hit))
+        row = {"type": t, "companies": firms, "company_count": len(firms),
+               "reports": [r["label"] for r in hit],
+               "total_claims": sum(matrix[t].values()), "per_report": matrix[t]}
+        (shared if len(firms) >= 2 else unique).append(row)
     shared.sort(key=lambda r: (-r["company_count"], -r["total_claims"]))
     unique.sort(key=lambda r: -r["total_claims"])
     return {"types": all_types, "matrix": matrix, "shared": shared, "unique": unique,
-            "company_count": n}
+            "company_count": len({r["company"] for r in records}),
+            "report_count": len(records)}
 
 
 def build_benchmark(matter_dirs: list[Path], stance: str = "neutral") -> dict[str, Any]:
-    """여러 사건의 평가 결과를 회사 축으로 재집계한다."""
+    """여러 사건의 평가 결과를 보고서 축으로 재집계한다(표본 강도는 회사 축)."""
     records = [r for r in (load_matter(d) for d in matter_dirs) if r]
     if len(records) < 2:
         raise ValueError("비교하려면 정밀평가(2-evaluation.json)가 끝난 사건이 2건 이상이어야 합니다")
     if stance not in STANCE_LABELS:
         raise ValueError(f"stance는 {'/'.join(STANCE_LABELS)} 중 하나여야 합니다")
 
+    assign_labels(records)
+    companies = list(dict.fromkeys(r["company"] for r in records))
     cross = cross_tabulate(records)
-    conf = sample_confidence(len(records))
+    conf = sample_confidence(len(companies), len(records))
 
-    # 위험 분포 — 회사별 절대건수와 '높음 이상' 비중(문안 수가 달라 절대비교가 왜곡될 수 있다)
+    # 위험 분포 — 보고서별 절대건수와 '높음 이상' 비중(문안 수가 달라 절대비교가 왜곡될 수 있다)
     positioning = []
     for r in records:
         total = sum(r["risk_dist"].values())
         high = r["risk_dist"].get("매우 높음", 0) + r["risk_dist"].get("높음", 0)
         positioning.append({
-            "company": r["company"], "matter_id": r["matter_id"],
+            "company": r["company"], "label": r["label"], "matter_id": r["matter_id"],
             "claims": total,
             "dist": {k: r["risk_dist"].get(k, 0) for k in RISK_ORDER},
             "high_or_above": high,
@@ -143,7 +188,8 @@ def build_benchmark(matter_dirs: list[Path], stance: str = "neutral") -> dict[st
         "stance": stance,
         "stance_label": STANCE_LABELS[stance],
         "sample_confidence": conf,
-        "companies": [r["company"] for r in records],
+        "companies": companies,                       # 고유 회사 — 표제·표본 서술용
+        "labels": [r["label"] for r in records],      # 보고서 — 표의 열 순서
         "positioning": positioning,
         "cross_tab": cross,
         "records": records,
