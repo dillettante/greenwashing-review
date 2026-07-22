@@ -16,6 +16,7 @@ import base64
 import html
 import json
 import mimetypes
+import re
 from pathlib import Path
 from typing import Any
 
@@ -187,6 +188,44 @@ def _e(value: Any) -> str:
     return html.escape(str(value if value is not None else "")).replace("\n", "<br>")
 
 
+# 내부 검증 이력을 뜻하는 표지 — 의뢰인 문서에 나가면 안 된다(작업 지시·도구명·수집 경로)
+_INTERNAL_MARK = ("변호사 확인", "국가법령정보", "korean-law", "아카이브", "MCP", "원문 확인",
+                  "전문 확인", "확인 필요", "로컬")
+
+
+def _public_status(status: str) -> str:
+    """판례·심결례의 `status`에서 **법적 절차 단계만** 남긴다.
+
+    이 필드에는 두 성격이 섞여 있다 — 절차 단계(확정·공정위 의결·ASA 재결)는 인용 가치에
+    직결되어 의뢰인에게 필요하지만, 검증 이력("국가법령정보 원문 확인", "확정 여부 변호사 확인")은
+    내부 작업 기록이다. 후자는 지우되, 확정 여부가 확인되지 않았다는 **사실 자체는**
+    중립적으로 남긴다([[CLAUDE]] §2-1 — 확정 여부 미확인은 표시해야 한다).
+    """
+    raw = str(status or "").strip()
+    if not raw:
+        return ""
+    parts: list[str] = []
+    # 절차 단계 추출(있는 것만)
+    if re.search(r"(?<!여부 )확정(?!\s*여부)", raw) and "여부" not in raw.split("확정")[0][-6:]:
+        parts.append("확정")
+    m = re.search(r"공정위 의결(?:\(([^)]+)\))?", raw)
+    if m:
+        parts.append(f"공정위 의결({m.group(1)})" if m.group(1) else "공정위 의결")
+    if "피심인 위법성 수락" in raw:
+        parts.append("피심인 위법성 수락")
+    if "ASA" in raw or "재결" in raw:
+        parts.append("영국 ASA 재결 — 국내법상 직접 근거는 아닌 참고 자료")
+    if "헌법재판소" in raw or "헌재" in raw:
+        parts.append("헌법재판소 결정")
+    # 확정 여부가 미확인이면 중립 표기로 남긴다(작업 지시 어투는 제거)
+    if not any(p == "확정" for p in parts) and re.search(r"확정\s*여부", raw):
+        parts.append("사법 확정 여부 미확인")
+    if not parts:
+        # 절차 단계가 없고 내부 기록뿐이면 표시하지 않는다
+        return "" if any(k in raw for k in _INTERNAL_MARK) else raw
+    return " · ".join(parts)
+
+
 def _risk_of(claim: dict) -> str:
     return (claim.get("evaluation") or {}).get("risk_final") or claim.get("risk_band") or "중간"
 
@@ -304,7 +343,7 @@ def create_assessment_report_html(result: dict[str, Any], authorities: dict[str,
             if ad.get("precedents"):
                 o.append("<h3>참고 판례·심결례</h3><ul class='tight'>" + "".join(
                     f"<li><b>{_e(p.get('cite'))}</b>"
-                    + (f" <span class='meta'>[{_e(p['status'])}]</span>" if p.get("status") else "")
+                    + (f" <span class='meta'>[{_e(_public_status(p['status']))}]</span>" if _public_status(p.get("status","")) else "")
                     + (f"<br>{_e(p['holding'])}" if p.get("holding") else "") + "</li>"
                     for p in ad["precedents"]) + "</ul>")
             if ad.get("conclusion"):
@@ -386,7 +425,7 @@ def create_assessment_report_html(result: dict[str, Any], authorities: dict[str,
             if ev.get("precedents"):
                 o.append('<div class="sub"><b>참고 판례·심결례</b><ul class="tight">' + "".join(
                     f"<li><b>{_e(p.get('cite'))}</b>"
-                    + (f" <span class='meta'>[{_e(p['status'])}]</span>" if p.get("status") else "")
+                    + (f" <span class='meta'>[{_e(_public_status(p['status']))}]</span>" if _public_status(p.get("status","")) else "")
                     + (f"<br>{_e(p['holding'])}" if p.get("holding") else "") + "</li>"
                     for p in ev["precedents"]) + "</ul></div>")
             ver = ev.get("verification")
