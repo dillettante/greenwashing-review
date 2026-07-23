@@ -308,6 +308,22 @@ def create_assessment_report_html(result: dict[str, Any], authorities: dict[str,
                 note += f". <b>다만 {bad}건은 원문에서 확인되지 않아 재확인이 필요합니다</b>"
             o.append(f'<p class="meta">{note}.</p>')
 
+    # 모호한 환경성 표현 사용 빈도 — 문안 단위 검토를 보완하는 노출 규모 지표
+    gt = result.get("green_terms") or {}
+    if gt.get("total"):
+        o.append("<h3>모호한 환경성 표현의 사용 빈도</h3>")
+        o.append(f'<p>보고서 전체에서 <b>{gt["total"]}회</b>({gt["page_count"]}쪽 기준 '
+                 f'쪽당 <b>{gt["per_page"]}회</b>) 사용되었습니다.</p>')
+        rows = []
+        for g in gt.get("groups", []):
+            top = ", ".join(f"{t['term']} {t['count']}" for t in g["terms"][:5])
+            rows.append(f"<tr><td>{_e(g['group'])}</td><td>{g['total']}회</td><td>{_e(top)}</td></tr>")
+        o.append("<table><tr><th>분류</th><th>횟수</th><th>주요 표현</th></tr>" + "".join(rows) + "</table>")
+        if gt.get("top_pages"):
+            o.append('<p class="meta">표현이 집중된 지면: '
+                     + ", ".join(f"{p['page']}쪽({p['count']}회)" for p in gt["top_pages"][:3]) + "</p>")
+        o.append(f'<div class="notice">{_e(gt.get("caveat", ""))}</div>')
+
     # ── 종합 위험 분석
     if narratives:
         sec += 1

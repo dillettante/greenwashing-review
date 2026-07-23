@@ -94,6 +94,20 @@ def create_benchmark_md(bm: dict, analysis: dict, output_path: Path) -> None:
         dist = " | ".join(str(p["dist"][k]) for k in RISK_ORDER)
         o.append(f"| {_cell(p['label'])} | {p['claims']} | {dist} | {p['high_ratio']}% | {p['redlines']}건 |")
 
+    # 모호한 환경성 표현 밀도 — 보고서마다 분량이 달라 쪽당 밀도가 유일하게 공정한 비교 축이다
+    groups = sorted({g for p in bm["positioning"] for g in p.get("green_groups", {})})
+    if groups:
+        o += ["", head("모호한 환경성 표현 밀도"), "",
+              "분량이 다른 보고서를 견주려면 절대 건수가 아니라 **쪽당 밀도**를 보아야 합니다.", "",
+              "| 보고서 | 총 사용 | 쪽당 | " + " | ".join(groups) + " |",
+              "|---|---|---|" + "---|" * len(groups)]
+        for p in bm["positioning"]:
+            per = " | ".join(str(p.get("green_groups", {}).get(g, 0)) for g in groups)
+            o.append(f"| {_cell(p['label'])} | {p.get('green_total', 0)}회 | "
+                     f"**{p.get('green_per_page', 0)}회** | {per} |")
+        o += ["", "> 사용 빈도는 노출 규모를 보여주는 참고 지표이며 그 자체로 위법성을 뜻하지 않습니다. "
+                  "구체적 근거와 범위를 밝혀 사용한 표현은 적법합니다."]
+
     o += ["", head("공통 패턴"), "",
           f"복수 회사에서 반복 관찰된 문안 유형입니다. **{conf['label']}** 수준으로 읽어야 합니다.", "",
           "| 문안 유형 | 출현 회사 | " + " | ".join(labels) + " |",
@@ -174,6 +188,19 @@ def create_benchmark_html(bm: dict, analysis: dict, output_path: Path) -> None:
         + "".join(f"<td>{p['dist'][k]}</td>" for k in RISK_ORDER)
         + f"<td><b>{p['high_ratio']}%</b></td><td>{p['redlines']}건</td></tr>"
         for p in bm["positioning"]) + "</table>")
+
+    groups = sorted({g for p in bm["positioning"] for g in p.get("green_groups", {})})
+    if groups:
+        h2("모호한 환경성 표현 밀도", "greenterms")
+        o.append("<p>분량이 다른 보고서를 견주려면 절대 건수가 아니라 <b>쪽당 밀도</b>를 보아야 합니다.</p>")
+        o.append("<table><tr><th>보고서</th><th>총 사용</th><th>쪽당</th>"
+                 + "".join(f"<th>{_e(g)}</th>" for g in groups) + "</tr>" + "".join(
+            f"<tr><td>{_e(p['label'])}</td><td>{p.get('green_total', 0)}회</td>"
+            f"<td><b>{p.get('green_per_page', 0)}회</b></td>"
+            + "".join(f"<td>{p.get('green_groups', {}).get(g, 0)}</td>" for g in groups)
+            + "</tr>" for p in bm["positioning"]) + "</table>")
+        o.append('<div class="notice">사용 빈도는 노출 규모를 보여주는 참고 지표이며 그 자체로 '
+                 "위법성을 뜻하지 않습니다. 구체적 근거와 범위를 밝혀 사용한 표현은 적법합니다.</div>")
 
     h2("공통 패턴", "shared")
     o.append(f'<p>복수 회사에서 반복 관찰된 문안 유형입니다. <b>{_e(conf["label"])}</b> 수준으로 읽어야 합니다.</p>')

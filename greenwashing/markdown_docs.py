@@ -123,6 +123,20 @@ def create_assessment_report_md(result: dict[str, Any], authorities: dict[str, d
         o.append(f"**[기계 트리아지 분포 — 참고용]** 환경 주장 {len(claims)}건 — 매우 높음 {counts['매우 높음']} · "
                  f"높음 {counts['높음']} · 중간 {counts['중간']} · 낮음 {counts['낮음']}. 정규식 값(법적 판단 아님).")
 
+    # 모호한 환경성 표현 사용 빈도 — 문안 단위 검토를 보완하는 노출 규모 지표
+    gt = result.get("green_terms") or {}
+    if gt.get("total"):
+        o += ["", f"**[모호한 환경성 표현 사용 빈도]** 전체 {gt['total']}회 / {gt['page_count']}쪽 "
+                  f"— 쪽당 {gt['per_page']}회", "",
+              "| 분류 | 횟수 | 주요 표현 |", "|---|---|---|"]
+        for grp in gt.get("groups", []):
+            top = ", ".join(f"{t['term']} {t['count']}" for t in grp["terms"][:5])
+            o.append(f"| {_cell(grp['group'])} | {grp['total']}회 | {_cell(top)} |")
+        if gt.get("top_pages"):
+            pages_txt = ", ".join(f"{p['page']}쪽({p['count']}회)" for p in gt["top_pages"][:3])
+            o.append(f"\n표현이 집중된 지면: {pages_txt}")
+        o += ["", f"> {gt.get('caveat', '')}"]
+
     # 종합 위험 분석(사건 서사) — 회사의 대외 서사 vs 확인된 사실의 구조적 괴리
     if narratives:
         section += 1

@@ -8,6 +8,7 @@ from typing import Any
 
 from .context import context_warnings, load_context
 from .extractors import extract_directory
+from .green_terms import count_green_terms
 from .models import Applicability, AssessmentResult, ClaimFinding, EvidenceMatch, RiskBand, SourcePage
 
 
@@ -354,6 +355,8 @@ def assess_matter(matter_dir: Path, mode: str) -> AssessmentResult:
         route_recommendations=recommend_routes(claims, context),
         warnings=warnings,
         claims_source=claims_source,
+        # 원문 텍스트가 살아 있는 지금 세어 둔다 — 저장 단계에서 본문을 빼기 때문에 나중에는 못 센다
+        green_terms=count_green_terms(text_pages),
     )
 
 

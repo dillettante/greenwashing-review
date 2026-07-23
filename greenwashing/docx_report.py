@@ -121,6 +121,15 @@ def create_assessment_report_docx(result: dict[str, Any], authorities: dict[str,
             f"중간 {counts['중간']} · 낮음 {counts['낮음']}. 정규식 값(법적 판단 아님)."
         )
 
+    gt = result.get("green_terms") or {}
+    if gt.get("total"):
+        doc.add_heading("모호한 환경성 표현 사용 빈도", level=2)
+        doc.add_paragraph(f"전체 {gt['total']}회 / {gt['page_count']}쪽 — 쪽당 {gt['per_page']}회")
+        _kv(doc, [(g["group"], f"{g['total']}회 — "
+                   + ", ".join(f"{t['term']} {t['count']}" for t in g["terms"][:5]))
+                  for g in gt.get("groups", [])])
+        doc.add_paragraph(gt.get("caveat", ""))
+
     if narratives:
         section += 1
         doc.add_heading(f"{section}. 종합 위험 분석 — 사건 서사", level=1)

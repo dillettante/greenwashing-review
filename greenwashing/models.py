@@ -94,6 +94,8 @@ class AssessmentResult:
     route_recommendations: list[dict[str, str]]
     warnings: list[str]
     claims_source: str = "regex"  # "llm"(1-claims.json 통독 추출) | "regex"(폴백)
+    # 모호한 환경성 표현 사용 빈도 — assess 단계에서만 셀 수 있다(저장 시 원문 텍스트를 빼기 때문)
+    green_terms: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -106,4 +108,5 @@ class AssessmentResult:
             "route_recommendations": self.route_recommendations,
             "warnings": self.warnings,
             "claims_source": self.claims_source,
+            "green_terms": self.green_terms,
         }

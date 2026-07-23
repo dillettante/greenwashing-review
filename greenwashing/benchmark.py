@@ -122,6 +122,7 @@ def load_matter(matter_dir: Path) -> dict[str, Any] | None:
         "narratives": ev.get("narratives") or [],
         "exec_summary": ev.get("exec_summary") or {},
         "gateway": ev.get("gateway") or {},
+        "green_terms": assessment.get("green_terms") or {},
         "risk_dist": collections.Counter(c["risk"] for c in claims if c["risk"]),
         "types": collections.Counter(t for c in claims for t in c["types"]),
     }
@@ -181,6 +182,11 @@ def build_benchmark(matter_dirs: list[Path], stance: str = "neutral") -> dict[st
             "high_ratio": round(high / total * 100, 1) if total else 0.0,
             "axes": [n.get("axis", "") for n in r["narratives"]],
             "redlines": sum(1 for c in r["claims"] if c["has_redline"]),
+            # 모호한 환경성 표현 — 보고서 분량이 달라 절대 건수는 비교가 왜곡되므로 쪽당 밀도를 함께 낸다
+            "green_total": (r["green_terms"] or {}).get("total", 0),
+            "green_per_page": (r["green_terms"] or {}).get("per_page", 0.0),
+            "green_groups": {g["group"]: g["total"]
+                             for g in (r["green_terms"] or {}).get("groups", [])},
         })
 
     return {
